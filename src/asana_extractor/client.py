@@ -11,6 +11,7 @@ AsanaClient wraps aiohttp with:
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from typing import Any
 
 import aiohttp
@@ -27,7 +28,7 @@ from asana_extractor.exceptions import AsanaPermanentError, AsanaTransientError
 from asana_extractor.logging import get_logger
 from asana_extractor.secrets import SecretsProvider
 
-__all__ = ["BASE_URL", "AsanaClient"]
+__all__ = ["BASE_URL", "DEFAULT_PAGE_SIZE", "AsanaClient"]
 
 BASE_URL = "https://app.asana.com/api/1.0"
 DEFAULT_TIMEOUT_SECONDS = 30
@@ -110,7 +111,9 @@ class AsanaClient:
             )
 
         try:
-            return await self._request(endpoint, params=params, workspace_gid=workspace_gid)
+            raw = await self._request(endpoint, params=params, workspace_gid=workspace_gid)
+            result = raw.get("data", raw)
+            return result if isinstance(result, dict) else raw
         except (
             aiohttp.ClientConnectionError,
             aiohttp.ServerDisconnectedError,
@@ -128,6 +131,85 @@ class AsanaClient:
                 message=f"Connection failed after retries: {exc}",
                 workspace_gid=workspace_gid,
             ) from exc
+
+    async def paginated_get(
+        self,
+        endpoint: str,
+        *,
+        params: dict[str, str] | None = None,
+        workspace_gid: str | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Auto-paginate through a list endpoint, yielding entities one at a time.
+
+        Follows next_page.offset until None. Each page requests limit=100 (Asana maximum).
+        Retries are handled per-page by the underlying _request() method.
+        Aborts on exhausted retries — no silent data gaps.
+
+        Args:
+            endpoint: API path relative to BASE_URL (e.g., "/users").
+            params: Optional additional query parameters (merged with pagination params).
+            workspace_gid: Workspace context for error logging and exceptions.
+
+        Yields:
+            Individual entity dicts from the "data" array, one at a time across all pages.
+
+        Raises:
+            RuntimeError: If called outside async context manager.
+            AsanaTransientError: If retries are exhausted on any page (pagination aborts).
+            AsanaPermanentError: On 4xx client errors.
+
+        Usage:
+            async for entity in client.paginated_get("/users", params={"workspace": gid}):
+                process(entity)
+        """
+        if self._session is None:
+            raise RuntimeError(
+                "Client not initialized. Use 'async with AsanaClient(...) as client:'"
+            )
+
+        page_params = dict(params or {})
+        page_params["limit"] = str(DEFAULT_PAGE_SIZE)
+
+        total_items = 0
+        page_count = 0
+
+        self._log.info(
+            "pagination_started",
+            endpoint=endpoint,
+            workspace_gid=workspace_gid,
+        )
+
+        while True:
+            page_count += 1
+            # _request returns full Asana envelope (retries handled inside)
+            response = await self._request(
+                endpoint, params=page_params, workspace_gid=workspace_gid
+            )
+
+            entities = response.get("data", [])
+            for entity in entities:
+                total_items += 1
+                yield entity
+
+            # Check for next page
+            next_page = response.get("next_page")
+            if next_page is None:
+                break
+
+            # Asana pagination uses offset parameter
+            offset = next_page.get("offset")
+            if offset is None:
+                break
+
+            page_params["offset"] = offset
+
+        self._log.info(
+            "pagination_complete",
+            endpoint=endpoint,
+            workspace_gid=workspace_gid,
+            total_items=total_items,
+            pages=page_count,
+        )
 
     @retry(
         retry=retry_if_exception_type(
@@ -204,5 +286,4 @@ class AsanaClient:
                 )
 
             raw: dict[str, Any] = await response.json()
-            result = raw.get("data", raw)
-            return result if isinstance(result, dict) else raw
+            return raw
