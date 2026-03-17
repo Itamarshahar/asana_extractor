@@ -1,0 +1,208 @@
+"""Async HTTP client for the Asana API with authentication, retry, and error handling.
+
+AsanaClient wraps aiohttp with:
+- PAT-based authentication via SecretsProvider
+- Connection pooling via managed ClientSession
+- Exponential backoff + jitter retry for transient errors (3 attempts)
+- Error classification: AsanaTransientError (5xx, connection) vs AsanaPermanentError (4xx)
+- Structured logging of all errors with workspace_gid context
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+import aiohttp
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+    wait_random,
+)
+
+from asana_extractor.exceptions import AsanaPermanentError, AsanaTransientError
+from asana_extractor.logging import get_logger
+from asana_extractor.secrets import SecretsProvider
+
+__all__ = ["BASE_URL", "AsanaClient"]
+
+BASE_URL = "https://app.asana.com/api/1.0"
+DEFAULT_TIMEOUT_SECONDS = 30
+DEFAULT_PAGE_SIZE = 100
+
+# Standard library logger for tenacity's before_sleep_log
+_std_logger = logging.getLogger(__name__)
+
+
+class AsanaClient:
+    """Async HTTP client for the Asana REST API.
+
+    Usage:
+        async with AsanaClient(secrets_provider) as client:
+            data = await client.get("/users/me")
+
+    The client handles:
+    - Bearer token authentication via SecretsProvider.get_secret("ASANA_PAT")
+    - Connection pooling (max 100 connections)
+    - Automatic retry on transient errors (3 attempts, exponential backoff + jitter)
+    - Error classification into AsanaTransientError / AsanaPermanentError
+    """
+
+    def __init__(self, secrets_provider: SecretsProvider) -> None:
+        self._secrets_provider = secrets_provider
+        self._session: aiohttp.ClientSession | None = None
+        self._log = get_logger(__name__)
+
+    async def __aenter__(self) -> AsanaClient:
+        pat = self._secrets_provider.get_secret("ASANA_PAT")
+        self._session = aiohttp.ClientSession(
+            base_url=BASE_URL,
+            headers={
+                "Authorization": f"Bearer {pat}",
+                "Accept": "application/json",
+            },
+            timeout=aiohttp.ClientTimeout(total=DEFAULT_TIMEOUT_SECONDS),
+            connector=aiohttp.TCPConnector(limit=100, enable_cleanup_closed=True),
+        )
+        self._log.info("asana_client_initialized")
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
+        if self._session is not None:
+            await self._session.close()
+        self._log.info("asana_client_closed")
+
+    async def get(
+        self,
+        endpoint: str,
+        *,
+        params: dict[str, str] | None = None,
+        workspace_gid: str | None = None,
+    ) -> dict[str, Any]:
+        """Make a GET request to the Asana API with retry and error handling.
+
+        Args:
+            endpoint: API path relative to BASE_URL (e.g., "/users/me").
+            params: Optional query parameters.
+            workspace_gid: Workspace context for error logging and exceptions.
+
+        Returns:
+            The "data" field from the Asana API response, or the full response
+            if no "data" key is present.
+
+        Raises:
+            RuntimeError: If called outside async context manager.
+            AsanaTransientError: On 5xx errors, rate limits (429), or connection
+                failures after all retry attempts are exhausted.
+            AsanaPermanentError: On 4xx client errors (except 429).
+        """
+        if self._session is None:
+            raise RuntimeError(
+                "Client not initialized. Use 'async with AsanaClient(...) as client:'"
+            )
+
+        try:
+            return await self._request(endpoint, params=params, workspace_gid=workspace_gid)
+        except (
+            aiohttp.ClientConnectionError,
+            aiohttp.ServerDisconnectedError,
+            TimeoutError,
+        ) as exc:
+            self._log.error(
+                "request_failed_after_retries",
+                endpoint=endpoint,
+                workspace_gid=workspace_gid,
+                error_type=type(exc).__name__,
+            )
+            raise AsanaTransientError(
+                status_code=None,
+                endpoint=endpoint,
+                message=f"Connection failed after retries: {exc}",
+                workspace_gid=workspace_gid,
+            ) from exc
+
+    @retry(
+        retry=retry_if_exception_type(
+            (
+                aiohttp.ClientConnectionError,
+                aiohttp.ServerDisconnectedError,
+                TimeoutError,
+                AsanaTransientError,
+            )
+        ),
+        wait=wait_exponential(multiplier=1, min=1, max=30) + wait_random(0, 1),
+        stop=stop_after_attempt(3),
+        before_sleep=before_sleep_log(_std_logger, logging.WARNING),
+        reraise=True,
+    )
+    async def _request(
+        self,
+        endpoint: str,
+        *,
+        params: dict[str, str] | None = None,
+        workspace_gid: str | None = None,
+    ) -> dict[str, Any]:
+        """Internal request method wrapped with tenacity retry logic."""
+        assert self._session is not None  # guarded by public get()
+
+        async with self._session.get(endpoint, params=params) as response:
+            if response.status >= 500:
+                body = await response.text()
+                self._log.warning(
+                    "transient_api_error",
+                    status=response.status,
+                    endpoint=endpoint,
+                    workspace_gid=workspace_gid,
+                    body=body[:500],
+                )
+                raise AsanaTransientError(
+                    status_code=response.status,
+                    endpoint=endpoint,
+                    message=f"Server error: {body[:200]}",
+                    workspace_gid=workspace_gid,
+                )
+
+            if response.status == 429:
+                # Phase 3 Rate Limiter handles 429 — for now, treat as transient
+                # This allows the client to work standalone before Phase 3
+                await response.text()
+                self._log.warning(
+                    "rate_limited",
+                    status=429,
+                    endpoint=endpoint,
+                    workspace_gid=workspace_gid,
+                )
+                raise AsanaTransientError(
+                    status_code=429,
+                    endpoint=endpoint,
+                    message="Rate limited (429). Phase 3 adds proper handling.",
+                    workspace_gid=workspace_gid,
+                )
+
+            if response.status >= 400:
+                body = await response.text()
+                self._log.error(
+                    "permanent_api_error",
+                    status=response.status,
+                    endpoint=endpoint,
+                    workspace_gid=workspace_gid,
+                    body=body[:500],
+                )
+                raise AsanaPermanentError(
+                    status_code=response.status,
+                    endpoint=endpoint,
+                    message=f"Client error: {body[:200]}",
+                    workspace_gid=workspace_gid,
+                )
+
+            raw: dict[str, Any] = await response.json()
+            result = raw.get("data", raw)
+            return result if isinstance(result, dict) else raw
