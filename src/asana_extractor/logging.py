@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from typing import Any
 
 import structlog
 
@@ -54,7 +55,7 @@ def configure_logging(log_level: str = "INFO") -> None:
     )
 
 
-def get_logger(name: str) -> structlog.stdlib.BoundLogger:
+def get_logger(name: str) -> Any:  # noqa: ANN401
     """Return a structlog bound logger for the given module name.
 
     Args:

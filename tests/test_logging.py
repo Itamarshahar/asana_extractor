@@ -1,10 +1,6 @@
 """Tests for structured logging setup."""
 
-import json
 import logging
-
-import pytest
-import structlog
 
 from asana_extractor.logging import configure_logging, get_logger
 

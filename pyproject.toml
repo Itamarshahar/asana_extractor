@@ -49,8 +49,7 @@ select = [
     "RUF", # ruff-specific rules
 ]
 ignore = [
-    "ANN101",  # Missing type annotation for `self` in method
-    "ANN102",  # Missing type annotation for `cls` in classmethod
+    # ANN101/ANN102 removed in newer ruff — self/cls type annotations not required
 ]
 
 [tool.ruff.lint.isort]
@@ -73,6 +72,7 @@ show_error_codes = true
 [[tool.mypy.overrides]]
 module = [
     "dotenv.*",
+    "structlog.*",
 ]
 ignore_missing_imports = true
 

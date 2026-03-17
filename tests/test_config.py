@@ -1,12 +1,11 @@
 """Tests for config loading and validation."""
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
-from asana_extractor.config import Settings, load_config
+from asana_extractor.config import load_config
 
 
 def _write_config(tmp_path: Path, data: dict) -> Path:
