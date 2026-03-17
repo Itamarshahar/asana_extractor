@@ -47,14 +47,11 @@ Plans:
   3. Client retries transient errors (5xx, timeouts) with exponential backoff + jitter
   4. Client logs permanent errors (4xx) with workspace GID, entity type, endpoint, HTTP status and does not crash
   5. Client uses aiohttp connection pooling for efficient HTTP
-**Plans**: 5 plans
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: Base aiohttp client session with auth headers and connection pooling
-- [ ] 02-02: Auto-pagination iterator (async generator following next_page)
-- [ ] 02-03: Retry logic with exponential backoff and jitter (tenacity)
-- [ ] 02-04: Error classification (transient vs permanent) and structured error logging
-- [ ] 02-05: Request/response data models (pydantic)
+- [ ] 02-01-PLAN.md — Exception hierarchy + base AsanaClient with auth, get(), retry, error classification
+- [ ] 02-02-PLAN.md — Auto-pagination async generator (paginated_get) + package exports
 
 ### Phase 3: Rate Limiter
 **Goal**: Implement per-workspace rate limiting that respects Asana's 429/Retry-After and prevents one workspace from blocking others.
@@ -195,7 +192,7 @@ Note: Phase 4 (File Writer) depends only on Phase 1 and can run in parallel with
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Project Foundation | 5/5 | Complete   | 2026-03-17 |
-| 2. API Client | 0/5 | Not started | - |
+| 2. API Client | 0/2 | Not started | - |
 | 3. Rate Limiter | 0/5 | Not started | - |
 | 4. File Writer | 0/3 | Not started | - |
 | 5. Entity Extraction | 0/6 | Not started | - |
