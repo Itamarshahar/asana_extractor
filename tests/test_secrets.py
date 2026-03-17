@@ -1,6 +1,5 @@
 """Tests for the secrets interface."""
 
-import sys
 from pathlib import Path
 
 import pytest
