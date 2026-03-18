@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 from asana_extractor.config import Settings
 from asana_extractor.logging import get_logger
 from asana_extractor.rate_limited_client import RateLimitedClient
+from asana_extractor.rate_limiter import GlobalRequestSemaphore
 from asana_extractor.secrets import SecretsProvider
 from asana_extractor.tenant import OrchestratorResult, TenantConfig, WorkspaceError
 from asana_extractor.writer import EntityWriter
@@ -83,6 +84,7 @@ class WorkspaceOrchestrator:
         """
         self._settings = settings
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_workspaces)
+        self._global_request_semaphore = GlobalRequestSemaphore()
         self._log = get_logger(__name__)
 
     async def run(self, tenants: list[TenantConfig]) -> OrchestratorResult:
@@ -196,7 +198,10 @@ class WorkspaceOrchestrator:
             log.debug("workspace_task_started")
             try:
                 secrets_provider = _PatSecretsProvider(tenant.pat)
-                async with RateLimitedClient(secrets_provider) as client:
+                async with RateLimitedClient(
+                    secrets_provider,
+                    global_semaphore=self._global_request_semaphore,
+                ) as client:
                     await extract_workspace(
                         client=client,
                         writer=writer,
