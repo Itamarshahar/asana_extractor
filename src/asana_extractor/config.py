@@ -25,9 +25,19 @@ class Settings(BaseModel):
     # Concurrency
     max_concurrent_workspaces: int = 10
 
+    # Shutdown
+    shutdown_timeout_seconds: int = 300
+
     @field_validator("max_concurrent_workspaces")
     @classmethod
     def must_be_positive(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("must be ≥ 1")
+        return v
+
+    @field_validator("shutdown_timeout_seconds")
+    @classmethod
+    def shutdown_timeout_must_be_positive(cls, v: int) -> int:
         if v < 1:
             raise ValueError("must be ≥ 1")
         return v
