@@ -148,6 +148,96 @@ class TestRateLimitedClient429Handling:
         assert call_count == 2
         assert result == {"gid": "ok"}
 
+    async def test_429_with_retry_after_header_passes_value_to_record_429(self) -> None:
+        """When API returns 429 with Retry-After: 30, record_429 receives retry_after=30."""
+        async with RateLimitedClient(FakePAT()) as client:
+            call_count = 0
+
+            def make_resp(call: int) -> MagicMock:
+                if call == 1:
+                    return make_mock_response(429, {}, headers={"Retry-After": "30"})
+                return make_mock_response(200, {"data": {"gid": "ok"}})
+
+            def fake_get(url: str, **kwargs: object) -> MagicMock:
+                nonlocal call_count
+                call_count += 1
+                return make_resp(call_count)
+
+            captured_retry_after: list[float | None] = []
+            state = client._get_429_state("ws1")
+
+            async def tracking_record_429(**kwargs: object) -> None:
+                captured_retry_after.append(kwargs.get("retry_after"))
+                state._bucket.reset_tokens()
+                state._consecutive_429s += 1
+
+            with patch.object(client._client._session, "get", side_effect=fake_get):
+                with patch.object(state, "record_429", tracking_record_429):
+                    await client.get("/test", workspace_gid="ws1")
+
+        assert len(captured_retry_after) == 1
+        assert captured_retry_after[0] == 30.0
+
+    async def test_429_without_retry_after_header_passes_none_to_record_429(self) -> None:
+        """When API returns 429 without Retry-After, record_429 receives retry_after=None."""
+        async with RateLimitedClient(FakePAT()) as client:
+            call_count = 0
+
+            def make_resp(call: int) -> MagicMock:
+                if call == 1:
+                    return make_mock_response(429, {})
+                return make_mock_response(200, {"data": {"gid": "ok"}})
+
+            def fake_get(url: str, **kwargs: object) -> MagicMock:
+                nonlocal call_count
+                call_count += 1
+                return make_resp(call_count)
+
+            captured_retry_after: list[float | None] = []
+            state = client._get_429_state("ws1")
+
+            async def tracking_record_429(**kwargs: object) -> None:
+                captured_retry_after.append(kwargs.get("retry_after"))
+                state._bucket.reset_tokens()
+                state._consecutive_429s += 1
+
+            with patch.object(client._client._session, "get", side_effect=fake_get):
+                with patch.object(state, "record_429", tracking_record_429):
+                    await client.get("/test", workspace_gid="ws1")
+
+        assert len(captured_retry_after) == 1
+        assert captured_retry_after[0] is None
+
+    async def test_429_with_malformed_retry_after_passes_none_to_record_429(self) -> None:
+        """When API returns 429 with malformed Retry-After, record_429 receives retry_after=None."""
+        async with RateLimitedClient(FakePAT()) as client:
+            call_count = 0
+
+            def make_resp(call: int) -> MagicMock:
+                if call == 1:
+                    return make_mock_response(429, {}, headers={"Retry-After": "abc"})
+                return make_mock_response(200, {"data": {"gid": "ok"}})
+
+            def fake_get(url: str, **kwargs: object) -> MagicMock:
+                nonlocal call_count
+                call_count += 1
+                return make_resp(call_count)
+
+            captured_retry_after: list[float | None] = []
+            state = client._get_429_state("ws1")
+
+            async def tracking_record_429(**kwargs: object) -> None:
+                captured_retry_after.append(kwargs.get("retry_after"))
+                state._bucket.reset_tokens()
+                state._consecutive_429s += 1
+
+            with patch.object(client._client._session, "get", side_effect=fake_get):
+                with patch.object(state, "record_429", tracking_record_429):
+                    await client.get("/test", workspace_gid="ws1")
+
+        assert len(captured_retry_after) == 1
+        assert captured_retry_after[0] is None
+
     async def test_permanent_error_propagates_without_retry(self) -> None:
         """4xx errors (not 429) propagate immediately without retry."""
         async with RateLimitedClient(FakePAT()) as client:

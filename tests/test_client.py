@@ -145,6 +145,56 @@ class TestAsanaClientErrors:
         # Only 1 request — 429 is excluded from _is_retryable
         assert len(mock_api.requests[key]) == 1
 
+    async def test_429_with_retry_after_header_propagates_value(
+        self, mock_api: _aioresponses
+    ) -> None:
+        """429 with Retry-After header sets retry_after on AsanaTransientError."""
+        mock_api.get(
+            _url("/test"),
+            status=429,
+            body="Too Many Requests",
+            headers={"Retry-After": "30"},
+        )
+
+        with patch.object(tenacity.nap, "sleep", AsyncMock()):
+            async with AsanaClient(FakePAT()) as client:
+                with pytest.raises(AsanaTransientError) as exc_info:
+                    await client.get("/test")
+
+        assert exc_info.value.status_code == 429
+        assert exc_info.value.retry_after == 30.0
+
+    async def test_429_without_retry_after_header_sets_none(self, mock_api: _aioresponses) -> None:
+        """429 without Retry-After header sets retry_after=None (60s fallback)."""
+        mock_api.get(_url("/test"), status=429, body="Too Many Requests")
+
+        with patch.object(tenacity.nap, "sleep", AsyncMock()):
+            async with AsanaClient(FakePAT()) as client:
+                with pytest.raises(AsanaTransientError) as exc_info:
+                    await client.get("/test")
+
+        assert exc_info.value.status_code == 429
+        assert exc_info.value.retry_after is None
+
+    async def test_429_with_malformed_retry_after_header_sets_none(
+        self, mock_api: _aioresponses
+    ) -> None:
+        """429 with malformed Retry-After header sets retry_after=None (60s fallback)."""
+        mock_api.get(
+            _url("/test"),
+            status=429,
+            body="Too Many Requests",
+            headers={"Retry-After": "abc"},
+        )
+
+        with patch.object(tenacity.nap, "sleep", AsyncMock()):
+            async with AsanaClient(FakePAT()) as client:
+                with pytest.raises(AsanaTransientError) as exc_info:
+                    await client.get("/test")
+
+        assert exc_info.value.status_code == 429
+        assert exc_info.value.retry_after is None
+
     async def test_connection_error_retried(self, mock_api: _aioresponses) -> None:
         """Connection errors trigger tenacity retry; after 3 attempts raises AsanaTransientError."""
         for _ in range(3):
