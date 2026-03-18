@@ -29,7 +29,9 @@ __all__ = [
     "ProjectExtractor",
     "TaskExtractor",
     "UserExtractor",
+    "WorkspaceExtractionResult",
     "discover_workspaces",
+    "extract_workspace",
 ]
 
 
@@ -181,6 +183,19 @@ class ProjectExtractionResult(ExtractionResult):
     """ExtractionResult with collected project GIDs for downstream task extraction."""
 
     project_gids: list[str] = field(default_factory=list)
+
+
+@dataclass
+class WorkspaceExtractionResult:
+    """Aggregated results for a full workspace extraction."""
+
+    workspace_gid: str
+    user_result: ExtractionResult
+    project_result: ProjectExtractionResult
+    task_result: ExtractionResult
+    total_entities: int
+    total_duration_seconds: float
+    warnings: list[str] = field(default_factory=list)
 
 
 class ProjectExtractor(BaseExtractor):
@@ -466,3 +481,85 @@ async def discover_workspaces(client: RateLimitedClient) -> list[dict[str, Any]]
 
     log.info("workspace_discovery_complete", workspace_count=len(workspaces))
     return workspaces
+
+
+async def extract_workspace(
+    client: RateLimitedClient,
+    writer: EntityWriter,
+    workspace_gid: str,
+) -> WorkspaceExtractionResult:
+    """Extract all entities for a single workspace: users, projects, then tasks.
+
+    Orchestration order (per CONTEXT.md decisions):
+    1. Users and projects extracted concurrently (both workspace-level, independent)
+    2. Tasks extracted after projects complete (tasks require project GIDs)
+    3. Task extraction is concurrent across projects (rate-limiter-throttled)
+
+    Empty workspaces (0 users, 0 projects) complete without error — task
+    extraction is simply skipped when project_gids is empty.
+
+    Args:
+        client: Rate-limited API client.
+        writer: Atomic JSON file writer.
+        workspace_gid: Workspace to extract.
+
+    Returns:
+        WorkspaceExtractionResult with per-entity-type results and totals.
+    """
+    log = get_logger(__name__)
+    log = log.bind(workspace_gid=workspace_gid)
+    log.info("workspace_extraction_started")
+
+    start_time = time.monotonic()
+    all_warnings: list[str] = []
+
+    # Phase 1: Extract users and projects concurrently
+    user_extractor = UserExtractor()
+    project_extractor = ProjectExtractor()
+
+    user_result, project_result = await asyncio.gather(
+        user_extractor.extract(client, writer, workspace_gid),
+        project_extractor.extract(client, writer, workspace_gid),
+    )
+
+    # project_result is ProjectExtractionResult with project_gids
+    assert isinstance(project_result, ProjectExtractionResult)
+    all_warnings.extend(user_result.warnings)
+    all_warnings.extend(project_result.warnings)
+
+    log.info(
+        "workspace_phase1_complete",
+        users=user_result.count,
+        projects=project_result.count,
+        project_gids_count=len(project_result.project_gids),
+    )
+
+    # Phase 2: Extract tasks for all discovered projects (concurrent)
+    task_extractor = TaskExtractor()
+    task_result = await task_extractor.extract_all(
+        client, writer, workspace_gid, project_result.project_gids
+    )
+    all_warnings.extend(task_result.warnings)
+
+    total_duration = time.monotonic() - start_time
+    total_entities = user_result.count + project_result.count + task_result.count
+
+    log.info(
+        "workspace_extraction_complete",
+        total_entities=total_entities,
+        users=user_result.count,
+        projects=project_result.count,
+        tasks=task_result.count,
+        duration_seconds=round(total_duration, 2),
+        warnings_count=len(all_warnings),
+    )
+
+    return WorkspaceExtractionResult(
+        workspace_gid=workspace_gid,
+        user_result=user_result,
+        project_result=project_result,
+        task_result=task_result,
+        total_entities=total_entities,
+        total_duration_seconds=round(total_duration, 2),
+        warnings=all_warnings,
+    )
