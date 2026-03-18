@@ -17,7 +17,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
-from asana_extractor.client import AsanaClient
+from asana_extractor.client import DEFAULT_PAGE_SIZE, AsanaClient
 from asana_extractor.exceptions import AsanaTransientError
 from asana_extractor.logging import get_logger
 from asana_extractor.rate_limiter import (
@@ -51,12 +51,18 @@ class RateLimitedClient:
 
     Args:
         secrets_provider: Provides the Asana PAT via get_secret("ASANA_PAT").
+        global_semaphore: Optional shared semaphore for capping concurrent requests
+            across multiple clients. If None, creates its own (backward compat).
     """
 
-    def __init__(self, secrets_provider: SecretsProvider) -> None:
+    def __init__(
+        self,
+        secrets_provider: SecretsProvider,
+        global_semaphore: GlobalRequestSemaphore | None = None,
+    ) -> None:
         self._client = AsanaClient(secrets_provider)
         self._registry = WorkspaceRateLimiterRegistry(rate=2.0, max_tokens=10.0)
-        self._semaphore = GlobalRequestSemaphore()
+        self._semaphore = global_semaphore or GlobalRequestSemaphore()
         self._429_states: dict[str, RateLimiter429State] = {}
         self._log = get_logger(__name__)
 
@@ -83,6 +89,47 @@ class RateLimitedClient:
     ) -> None:
         await self._client.__aexit__(exc_type, exc_val, exc_tb)
         self._log.info("rate_limited_client_closed")
+
+    async def _execute_get_envelope(
+        self,
+        endpoint: str,
+        *,
+        params: dict[str, str] | None = None,
+        workspace_gid: str | None = None,
+        workspace_key: str,
+        is_retry: bool = False,
+    ) -> dict[str, Any]:
+        """Execute a single GET with rate limiting, returning the full Asana envelope.
+
+        Unlike ``_execute_get`` (which delegates to ``AsanaClient.get()`` and
+        returns only the unwrapped ``data`` field), this method calls
+        ``AsanaClient._request()`` directly so the caller receives the full
+        response including ``next_page`` — needed for manual pagination.
+        """
+        state = self._get_429_state(workspace_key)
+        bucket = self._registry.get_limiter(workspace_key)
+
+        await state.wait_if_paused()
+
+        async with self._semaphore:
+            await bucket.acquire()
+            try:
+                result: dict[str, Any] = await self._client._request(
+                    endpoint, params=params, workspace_gid=workspace_gid
+                )
+                state.record_success()
+                return result
+            except AsanaTransientError as exc:
+                if exc.status_code == 429 and not is_retry:
+                    await state.record_429(endpoint=endpoint, retry_after=exc.retry_after)
+                    return await self._execute_get_envelope(
+                        endpoint,
+                        params=params,
+                        workspace_gid=workspace_gid,
+                        workspace_key=workspace_key,
+                        is_retry=True,
+                    )
+                raise
 
     async def _execute_get(
         self,
@@ -163,8 +210,9 @@ class RateLimitedClient:
     ) -> AsyncIterator[dict[str, Any]]:
         """Rate-limited paginated GET. Identical interface to AsanaClient.paginated_get().
 
-        Applies rate limiting on each page fetch. Yields entities one at a time
-        across all pages, following next_page.offset automatically.
+        Applies rate limiting **per page**: each page individually acquires the
+        token bucket and semaphore before its HTTP call, preventing unbounded
+        bursts from large entity sets.
 
         Args:
             endpoint: API path relative to BASE_URL (e.g., "/users").
@@ -180,19 +228,50 @@ class RateLimitedClient:
             AsanaPermanentError: On 4xx errors.
         """
         workspace_key = workspace_gid or _GLOBAL_WORKSPACE_KEY
-        state = self._get_429_state(workspace_key)
-        bucket = self._registry.get_limiter(workspace_key)
 
-        # We need per-page rate limiting. Delegate to the underlying client's
-        # paginated_get but wrap each page's HTTP call via the rate limiter.
-        # Since we can't intercept individual pages from outside the generator,
-        # we apply rate limiting at the outer level per entity batch by acquiring
-        # the semaphore + bucket once per paginated_get call (per-call pacing).
-        # For full per-page rate limiting, the paginated flow uses the same bucket.
-        await state.wait_if_paused()
-        async with self._semaphore:
-            await bucket.acquire()
-            async for entity in self._client.paginated_get(
-                endpoint, params=params, workspace_gid=workspace_gid
-            ):
+        page_params = dict(params or {})
+        page_params["limit"] = str(DEFAULT_PAGE_SIZE)
+
+        total_items = 0
+        page_count = 0
+
+        self._log.info(
+            "paginated_get_started",
+            endpoint=endpoint,
+            workspace_gid=workspace_gid,
+        )
+
+        while True:
+            page_count += 1
+            # Each page goes through the full rate limiting stack:
+            # wait_if_paused → semaphore → bucket.acquire → HTTP → 429 handling
+            response = await self._execute_get_envelope(
+                endpoint,
+                params=page_params,
+                workspace_gid=workspace_gid,
+                workspace_key=workspace_key,
+            )
+
+            entities: list[dict[str, Any]] = response.get("data", [])
+            for entity in entities:
+                total_items += 1
                 yield entity
+
+            # Check for next page
+            next_page = response.get("next_page")
+            if next_page is None:
+                break
+
+            offset = next_page.get("offset")
+            if offset is None:
+                break
+
+            page_params["offset"] = offset
+
+        self._log.info(
+            "paginated_get_complete",
+            endpoint=endpoint,
+            workspace_gid=workspace_gid,
+            total_items=total_items,
+            pages=page_count,
+        )

@@ -187,13 +187,38 @@ class TestRateLimitedClient429Handling:
 class TestRateLimitedClientPaginatedGet:
     async def test_paginated_get_yields_entities(self) -> None:
         """paginated_get yields entities across multiple pages."""
+        # Mock the HTTP session to return envelope responses with pagination.
+        # Page 1 returns next_page with offset; page 2 terminates.
+        import json
 
-        async def fake_paginated(*args: object, **kwargs: object) -> object:
-            yield {"gid": "1"}
-            yield {"gid": "2"}
+        page1_body = json.dumps(
+            {
+                "data": [{"gid": "1"}],
+                "next_page": {"offset": "abc", "uri": "/users?offset=abc"},
+            }
+        )
+        page2_body = json.dumps(
+            {
+                "data": [{"gid": "2"}],
+                "next_page": None,
+            }
+        )
+        call_idx = 0
+
+        def fake_session_get(url: str, **kwargs: object) -> MagicMock:
+            nonlocal call_idx
+            body = page1_body if call_idx == 0 else page2_body
+            call_idx += 1
+            resp = MagicMock()
+            resp.status = 200
+            resp.json = AsyncMock(return_value=json.loads(body))
+            resp.text = AsyncMock(return_value=body)
+            resp.__aenter__ = AsyncMock(return_value=resp)
+            resp.__aexit__ = AsyncMock(return_value=False)
+            return resp
 
         async with RateLimitedClient(FakePAT()) as client:
-            with patch.object(client._client, "paginated_get", fake_paginated):
+            with patch.object(client._client._session, "get", side_effect=fake_session_get):
                 results = []
                 async for entity in client.paginated_get("/users", workspace_gid="ws1"):
                     results.append(entity)
