@@ -9,10 +9,19 @@ that run() never raises, enabling Phase 7 (Scheduler) to inspect failures cleanl
 
 from __future__ import annotations
 
+import json
+import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 
-__all__ = ["OrchestratorResult", "TenantConfig", "TenantProvider", "WorkspaceError"]
+__all__ = [
+    "EnvTenantProvider",
+    "OrchestratorResult",
+    "TenantConfig",
+    "TenantProvider",
+    "WorkspaceError",
+]
 
 
 @dataclass
@@ -57,6 +66,100 @@ class TenantProvider(ABC):
             List of TenantConfig objects, one per tenant workspace.
             Returns an empty list if no tenants are configured.
         """
+
+
+class EnvTenantProvider(TenantProvider):
+    """Reads tenant configurations from the tenants array in config.json.
+
+    The config.json file must contain a top-level "tenants" array:
+    ```json
+    {
+        "extraction_interval": 300,
+        "tenants": [
+            {"workspace_gid": "12345678901234", "pat": "1/your-token-here"},
+            {"workspace_gid": "98765432109876", "pat": "1/another-token"}
+        ]
+    }
+    ```
+
+    Each entry must have "workspace_gid" and "pat" fields.
+
+    Args:
+        config_path: Path to config.json. Defaults to "config.json" in the
+                     current working directory.
+    """
+
+    def __init__(self, config_path: str | Path = "config.json") -> None:
+        self._config_path = Path(config_path)
+
+    def list_tenants(self) -> list[TenantConfig]:
+        """Read and return tenant configurations from config.json.
+
+        Exits with a clear error message if:
+        - The config file doesn't exist
+        - The file is not valid JSON
+        - The "tenants" key is missing or not an array
+        - Any tenant entry is missing "workspace_gid" or "pat"
+
+        Returns:
+            List of TenantConfig objects. Returns empty list if tenants array
+            is empty (not an error condition — orchestrator handles empty list).
+        """
+        if not self._config_path.exists():
+            print(
+                f"ERROR: Configuration file not found: {self._config_path}\n"
+                f"Add a 'tenants' array to your config.json.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        try:
+            raw = json.loads(self._config_path.read_text())
+        except json.JSONDecodeError as exc:
+            print(f"ERROR: config.json is not valid JSON: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        tenants_raw = raw.get("tenants")
+        if tenants_raw is None:
+            print(
+                "ERROR: config.json is missing required key 'tenants'.\n"
+                "Add a 'tenants' array with objects containing 'workspace_gid' and 'pat'.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        if not isinstance(tenants_raw, list):
+            print(
+                "ERROR: 'tenants' in config.json must be an array.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        tenants: list[TenantConfig] = []
+        for i, entry in enumerate(tenants_raw):
+            if not isinstance(entry, dict):
+                print(
+                    f"ERROR: tenants[{i}] must be an object with 'workspace_gid' and 'pat'.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            workspace_gid = entry.get("workspace_gid")
+            pat = entry.get("pat")
+            if not workspace_gid or not isinstance(workspace_gid, str):
+                print(
+                    f"ERROR: tenants[{i}].workspace_gid is missing or not a string.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            if not pat or not isinstance(pat, str):
+                print(
+                    f"ERROR: tenants[{i}].pat is missing or not a string.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            tenants.append(TenantConfig(workspace_gid=workspace_gid, pat=pat))
+
+        return tenants
 
 
 @dataclass
