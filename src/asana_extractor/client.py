@@ -11,6 +11,9 @@ AsanaClient wraps aiohttp with:
 from __future__ import annotations
 
 import logging
+import platform
+import ssl
+import subprocess
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -18,7 +21,7 @@ import aiohttp
 from tenacity import (
     before_sleep_log,
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
     wait_random,
@@ -30,12 +33,53 @@ from asana_extractor.secrets import SecretsProvider
 
 __all__ = ["BASE_URL", "DEFAULT_PAGE_SIZE", "AsanaClient"]
 
-BASE_URL = "https://app.asana.com/api/1.0"
+BASE_URL = "https://app.asana.com/api/1.0/"
 DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_PAGE_SIZE = 100
 
 # Standard library logger for tenacity's before_sleep_log
 _std_logger = logging.getLogger(__name__)
+
+
+def _build_ssl_context() -> ssl.SSLContext:
+    """Build an SSL context that trusts the system CA store.
+
+    On macOS, also loads certificates from the system keychain so that
+    corporate proxy / self-signed CAs installed via MDM are trusted.
+    """
+    ctx = ssl.create_default_context()
+    if platform.system() == "Darwin":
+        try:
+            result = subprocess.run(
+                ["security", "find-certificate", "-a", "-p", "/Library/Keychains/System.keychain"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0 and result.stdout:
+                ctx.load_verify_locations(cadata=result.stdout)
+        except Exception:  # noqa: BLE001
+            pass  # Fall back to default CAs if keychain access fails
+    return ctx
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Return True if the exception should trigger a tenacity retry.
+
+    429 (rate limit) is excluded — RateLimitedClient handles it via its own
+    Retry-After logic. Retrying 429 inside AsanaClient would fight the rate limiter.
+    """
+    if isinstance(exc, AsanaTransientError) and exc.status_code == 429:
+        return False
+    return isinstance(
+        exc,
+        (
+            aiohttp.ClientConnectionError,
+            aiohttp.ServerDisconnectedError,
+            TimeoutError,
+            AsanaTransientError,
+        ),
+    )
 
 
 class AsanaClient:
@@ -66,7 +110,11 @@ class AsanaClient:
                 "Accept": "application/json",
             },
             timeout=aiohttp.ClientTimeout(total=DEFAULT_TIMEOUT_SECONDS),
-            connector=aiohttp.TCPConnector(limit=100, enable_cleanup_closed=True),
+            connector=aiohttp.TCPConnector(
+                limit=100,
+                enable_cleanup_closed=True,
+                ssl=_build_ssl_context(),
+            ),
         )
         self._log.info("asana_client_initialized")
         return self
@@ -79,6 +127,7 @@ class AsanaClient:
     ) -> None:
         if self._session is not None:
             await self._session.close()
+            self._session = None
         self._log.info("asana_client_closed")
 
     async def get(
@@ -212,14 +261,7 @@ class AsanaClient:
         )
 
     @retry(
-        retry=retry_if_exception_type(
-            (
-                aiohttp.ClientConnectionError,
-                aiohttp.ServerDisconnectedError,
-                TimeoutError,
-                AsanaTransientError,
-            )
-        ),
+        retry=retry_if_exception(_is_retryable),
         wait=wait_exponential(multiplier=1, min=1, max=30) + wait_random(0, 1),
         stop=stop_after_attempt(3),
         before_sleep=before_sleep_log(_std_logger, logging.WARNING),
@@ -235,7 +277,10 @@ class AsanaClient:
         """Internal request method wrapped with tenacity retry logic."""
         assert self._session is not None  # guarded by public get()
 
-        async with self._session.get(endpoint, params=params) as response:
+        # Strip leading slash so aiohttp resolves relative to base_url correctly.
+        # aiohttp treats "/foo" as absolute (drops base path), "foo" as relative.
+        url = endpoint.lstrip("/")
+        async with self._session.get(url, params=params) as response:
             if response.status >= 500:
                 body = await response.text()
                 self._log.warning(
@@ -253,11 +298,12 @@ class AsanaClient:
                 )
 
             if response.status == 429:
-                # Phase 3 Rate Limiter handles 429 — for now, treat as transient
-                # This allows the client to work standalone before Phase 3
+                # 429 is NOT retried by tenacity — RateLimitedClient handles
+                # Retry-After and workspace isolation. AsanaClient raises
+                # immediately so the caller can apply its own back-off strategy.
                 await response.text()
                 self._log.warning(
-                    "rate_limited",
+                    "rate_limited_429",
                     status=429,
                     endpoint=endpoint,
                     workspace_gid=workspace_gid,
@@ -265,7 +311,7 @@ class AsanaClient:
                 raise AsanaTransientError(
                     status_code=429,
                     endpoint=endpoint,
-                    message="Rate limited (429). Phase 3 adds proper handling.",
+                    message="Rate limited (429) — RateLimitedClient handles Retry-After.",
                     workspace_gid=workspace_gid,
                 )
 
