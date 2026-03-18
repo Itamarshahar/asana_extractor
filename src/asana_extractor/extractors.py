@@ -12,6 +12,7 @@ extract() method handles pagination, writing, and metrics automatically.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -21,7 +22,15 @@ from asana_extractor.logging import get_logger
 from asana_extractor.rate_limited_client import RateLimitedClient
 from asana_extractor.writer import EntityWriter
 
-__all__ = ["BaseExtractor", "ExtractionResult", "discover_workspaces"]
+__all__ = [
+    "BaseExtractor",
+    "ExtractionResult",
+    "ProjectExtractionResult",
+    "ProjectExtractor",
+    "TaskExtractor",
+    "UserExtractor",
+    "discover_workspaces",
+]
 
 
 @dataclass
@@ -110,7 +119,7 @@ class BaseExtractor(ABC):
         count = 0
         warnings: list[str] = []
 
-        params = self._build_params(**kwargs)
+        params = self._build_params(workspace_gid=workspace_gid, **kwargs)
 
         log.info("extraction_started", endpoint=self.endpoint)
 
@@ -144,6 +153,273 @@ class BaseExtractor(ABC):
             count=count,
             duration_seconds=round(duration, 2),
             warnings=warnings,
+        )
+
+
+class UserExtractor(BaseExtractor):
+    """Extracts all users for a workspace via GET /users?workspace={gid}.
+
+    Uses inherited extract() method — no override needed.
+    Each user entity is written to output/{workspace_gid}/users/{gid}.json.
+    """
+
+    @property
+    def entity_type(self) -> str:
+        return "users"
+
+    @property
+    def endpoint(self) -> str:
+        return "/users"
+
+    def _build_params(self, **kwargs: Any) -> dict[str, str]:  # noqa: ANN401
+        workspace_gid: str = kwargs["workspace_gid"]
+        return {"workspace": workspace_gid}
+
+
+@dataclass
+class ProjectExtractionResult(ExtractionResult):
+    """ExtractionResult with collected project GIDs for downstream task extraction."""
+
+    project_gids: list[str] = field(default_factory=list)
+
+
+class ProjectExtractor(BaseExtractor):
+    """Extracts all projects for a workspace via GET /projects?workspace={gid}.
+
+    Overrides extract() to collect project GIDs while writing entities.
+    Returns ProjectExtractionResult with project_gids list for task extraction.
+    Each project is written to output/{workspace_gid}/projects/{gid}.json.
+    """
+
+    @property
+    def entity_type(self) -> str:
+        return "projects"
+
+    @property
+    def endpoint(self) -> str:
+        return "/projects"
+
+    def _build_params(self, **kwargs: Any) -> dict[str, str]:  # noqa: ANN401
+        workspace_gid: str = kwargs["workspace_gid"]
+        return {"workspace": workspace_gid}
+
+    async def extract(
+        self,
+        client: RateLimitedClient,
+        writer: EntityWriter,
+        workspace_gid: str,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> ProjectExtractionResult:
+        """Extract all projects, writing each to disk and collecting GIDs.
+
+        Returns ProjectExtractionResult (extends ExtractionResult) with
+        project_gids list that the workspace orchestrator passes to TaskExtractor.
+        """
+        log = get_logger(__name__).bind(
+            workspace_gid=workspace_gid,
+            entity_type=self.entity_type,
+        )
+        log.info("extraction_started", endpoint=self.endpoint)
+
+        start_time = time.monotonic()
+        count = 0
+        warnings: list[str] = []
+        project_gids: list[str] = []
+        params = self._build_params(workspace_gid=workspace_gid, **kwargs)
+
+        async for entity in client.paginated_get(
+            self.endpoint, params=params, workspace_gid=workspace_gid
+        ):
+            gid = entity.get("gid")
+            if gid is None:
+                msg = (
+                    f"Skipped entity missing 'gid': endpoint={self.endpoint} "
+                    f"workspace={workspace_gid} entity={repr(entity)[:200]}"
+                )
+                warnings.append(msg)
+                log.warning("entity_missing_gid", entity_repr=repr(entity)[:200])
+                continue
+
+            writer.write_entity(workspace_gid, self.entity_type, gid, entity)
+            project_gids.append(gid)
+            count += 1
+
+        duration = time.monotonic() - start_time
+        log.info(
+            "extraction_complete",
+            count=count,
+            duration_seconds=round(duration, 2),
+            warning_count=len(warnings),
+        )
+
+        return ProjectExtractionResult(
+            entity_type=self.entity_type,
+            count=count,
+            duration_seconds=round(duration, 2),
+            warnings=warnings,
+            project_gids=project_gids,
+        )
+
+
+class TaskExtractor(BaseExtractor):
+    """Extracts tasks for projects via GET /tasks?project={gid}, concurrent across projects.
+
+    Unlike User/ProjectExtractor, tasks are scoped to projects not workspaces.
+    extract() handles a single project. extract_all() fires concurrent extraction
+    across all project GIDs, letting the RateLimitedClient handle throttling.
+
+    Each task entity is written to output/{workspace_gid}/tasks/{gid}.json.
+    """
+
+    @property
+    def entity_type(self) -> str:
+        return "tasks"
+
+    @property
+    def endpoint(self) -> str:
+        return "/tasks"
+
+    def _build_params(self, **kwargs: Any) -> dict[str, str]:  # noqa: ANN401
+        project_gid: str = kwargs["project_gid"]
+        return {"project": project_gid}
+
+    async def extract(
+        self,
+        client: RateLimitedClient,
+        writer: EntityWriter,
+        workspace_gid: str,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> ExtractionResult:
+        """Extract all tasks for a single project.
+
+        Args:
+            client: Rate-limited API client.
+            writer: Atomic JSON file writer.
+            workspace_gid: Workspace identifier for output path.
+            **kwargs: Must include project_gid (str).
+
+        Returns:
+            ExtractionResult for this single project's tasks.
+        """
+        project_gid: str = kwargs["project_gid"]
+        log = get_logger(__name__).bind(
+            workspace_gid=workspace_gid,
+            entity_type=self.entity_type,
+            project_gid=project_gid,
+        )
+        log.info("task_extraction_started")
+
+        start_time = time.monotonic()
+        count = 0
+        warnings: list[str] = []
+        params = self._build_params(project_gid=project_gid)
+
+        async for entity in client.paginated_get(
+            self.endpoint, params=params, workspace_gid=workspace_gid
+        ):
+            gid = entity.get("gid")
+            if gid is None:
+                msg = (
+                    f"Skipped task missing 'gid': project={project_gid} "
+                    f"workspace={workspace_gid} entity={repr(entity)[:200]}"
+                )
+                warnings.append(msg)
+                log.warning("entity_missing_gid", entity_repr=repr(entity)[:200])
+                continue
+
+            writer.write_entity(workspace_gid, self.entity_type, gid, entity)
+            count += 1
+
+        duration = time.monotonic() - start_time
+        log.info(
+            "task_extraction_complete",
+            project_gid=project_gid,
+            count=count,
+            duration_seconds=round(duration, 2),
+        )
+
+        return ExtractionResult(
+            entity_type=self.entity_type,
+            count=count,
+            duration_seconds=round(duration, 2),
+            warnings=warnings,
+        )
+
+    async def extract_all(
+        self,
+        client: RateLimitedClient,
+        writer: EntityWriter,
+        workspace_gid: str,
+        project_gids: list[str],
+    ) -> ExtractionResult:
+        """Extract tasks concurrently across all projects in a workspace.
+
+        Fires concurrent extract() calls for each project_gid. The
+        RateLimitedClient handles throttling via its token bucket and global
+        semaphore — this method just fires and lets the rate limiter queue.
+
+        Args:
+            client: Rate-limited API client.
+            writer: Atomic JSON file writer.
+            workspace_gid: Workspace identifier.
+            project_gids: List of project GIDs to extract tasks from.
+
+        Returns:
+            Aggregated ExtractionResult across all projects.
+        """
+        log = get_logger(__name__).bind(
+            workspace_gid=workspace_gid,
+            entity_type="tasks",
+        )
+
+        if not project_gids:
+            log.info("task_extraction_skipped", reason="no_projects")
+            return ExtractionResult(
+                entity_type=self.entity_type,
+                count=0,
+                duration_seconds=0.0,
+            )
+
+        log.info("task_extraction_all_started", project_count=len(project_gids))
+        start_time = time.monotonic()
+
+        # Fire concurrent extraction — rate limiter handles throttling
+        coros = [
+            self.extract(client, writer, workspace_gid, project_gid=pgid) for pgid in project_gids
+        ]
+        results = await asyncio.gather(*coros, return_exceptions=True)
+
+        # Aggregate results
+        total_count = 0
+        all_warnings: list[str] = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                pgid = project_gids[i]
+                msg = f"Task extraction failed for project {pgid}: {result}"
+                all_warnings.append(msg)
+                log.error(
+                    "task_extraction_project_failed",
+                    project_gid=pgid,
+                    error=str(result),
+                )
+            elif isinstance(result, ExtractionResult):
+                total_count += result.count
+                all_warnings.extend(result.warnings)
+
+        duration = time.monotonic() - start_time
+        log.info(
+            "task_extraction_all_complete",
+            total_tasks=total_count,
+            projects_attempted=len(project_gids),
+            projects_failed=sum(1 for r in results if isinstance(r, Exception)),
+            duration_seconds=round(duration, 2),
+        )
+
+        return ExtractionResult(
+            entity_type=self.entity_type,
+            count=total_count,
+            duration_seconds=round(duration, 2),
+            warnings=all_warnings,
         )
 
 
