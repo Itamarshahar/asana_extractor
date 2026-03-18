@@ -64,9 +64,9 @@ def make_fake_writer() -> MagicMock:
 
 class TestUserExtractor:
     async def test_extracts_users_and_writes(self) -> None:
-        """Users yielded by paginated_get are written via write_entity."""
+        """Users yielded by paginated_get are written via write_entity with model fields."""
         entities: list[dict[str, object]] = [
-            {"gid": "u1", "name": "Alice"},
+            {"gid": "u1", "name": "Alice", "email": "alice@example.com"},
             {"gid": "u2", "name": "Bob"},
         ]
         client = make_fake_client(paginated_responses=entities)
@@ -78,8 +78,23 @@ class TestUserExtractor:
         assert result.count == 2
         assert result.entity_type == "users"
         assert writer.write_entity.call_count == 2
-        writer.write_entity.assert_any_call("ws1", "users", "u1", {"gid": "u1", "name": "Alice"})
-        writer.write_entity.assert_any_call("ws1", "users", "u2", {"gid": "u2", "name": "Bob"})
+
+        # Collect written dicts keyed by gid
+        calls = writer.write_entity.call_args_list
+        written = {c.args[2]: c.args[3] for c in calls}
+
+        assert "u1" in written
+        u1 = written["u1"]
+        assert u1["gid"] == "u1"
+        assert u1["name"] == "Alice"
+        assert u1["email"] == "alice@example.com"
+        assert "last_fetch_time" in u1
+
+        assert "u2" in written
+        u2 = written["u2"]
+        assert u2["gid"] == "u2"
+        assert u2["name"] == "Bob"
+        assert "last_fetch_time" in u2
 
     async def test_missing_gid_skipped_with_warning(self) -> None:
         """Entities without a 'gid' field are skipped; warning recorded."""
@@ -104,9 +119,9 @@ class TestUserExtractor:
 
 class TestProjectExtractor:
     async def test_extracts_projects_and_collects_gids(self) -> None:
-        """Projects are written and GIDs collected in ProjectExtractionResult."""
+        """Projects are written with model fields and GIDs collected in ProjectExtractionResult."""
         entities: list[dict[str, object]] = [
-            {"gid": "p1", "name": "Alpha"},
+            {"gid": "p1", "name": "Alpha", "workspace": {"gid": "ws1"}},
             {"gid": "p2", "name": "Beta"},
         ]
         client = make_fake_client(paginated_responses=entities)
@@ -120,6 +135,23 @@ class TestProjectExtractor:
         assert result.project_gids == ["p1", "p2"]
         assert result.entity_type == "projects"
         assert writer.write_entity.call_count == 2
+
+        # Collect written dicts keyed by gid
+        calls = writer.write_entity.call_args_list
+        written = {c.args[2]: c.args[3] for c in calls}
+
+        assert "p1" in written
+        p1 = written["p1"]
+        assert p1["gid"] == "p1"
+        assert p1["name"] == "Alpha"
+        assert p1["workspace_gid"] == "ws1"
+        assert "last_fetch_time" in p1
+
+        assert "p2" in written
+        p2 = written["p2"]
+        assert p2["gid"] == "p2"
+        assert p2["name"] == "Beta"
+        assert "last_fetch_time" in p2
 
     async def test_empty_workspace_returns_empty(self) -> None:
         """Empty paginated response produces count=0 and project_gids=[]."""

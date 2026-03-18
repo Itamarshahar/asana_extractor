@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from asana_extractor.logging import get_logger
-from asana_extractor.models import Task
+from asana_extractor.models import Project, Task, User
 from asana_extractor.rate_limited_client import RateLimitedClient
 from asana_extractor.writer import EntityWriter
 
@@ -163,7 +163,8 @@ class BaseExtractor(ABC):
 class UserExtractor(BaseExtractor):
     """Extracts all users for a workspace via GET /users?workspace={gid}.
 
-    Uses inherited extract() method — no override needed.
+    Overrides extract() to construct User model instances, ensuring
+    last_fetch_time appears in the serialized JSON output.
     Each user entity is written to output/{workspace_gid}/users/{gid}.json.
     """
 
@@ -178,6 +179,59 @@ class UserExtractor(BaseExtractor):
     def _build_params(self, **kwargs: Any) -> dict[str, str]:  # noqa: ANN401
         workspace_gid: str = kwargs["workspace_gid"]
         return {"workspace": workspace_gid}
+
+    async def extract(
+        self,
+        client: RateLimitedClient,
+        writer: EntityWriter,
+        workspace_gid: str,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> ExtractionResult:
+        """Extract all users, constructing User models for proper serialization."""
+        log = get_logger(__name__).bind(
+            workspace_gid=workspace_gid,
+            entity_type=self.entity_type,
+        )
+        start_time = time.monotonic()
+        count = 0
+        warnings: list[str] = []
+
+        params = self._build_params(workspace_gid=workspace_gid, **kwargs)
+
+        log.info("extraction_started", endpoint=self.endpoint)
+
+        async for entity in client.paginated_get(
+            self.endpoint, params=params, workspace_gid=workspace_gid
+        ):
+            gid = entity.get("gid")
+            if gid is None:
+                msg = (
+                    f"Skipped entity missing 'gid': endpoint={self.endpoint} "
+                    f"workspace={workspace_gid} entity={repr(entity)[:200]}"
+                )
+                warnings.append(msg)
+                log.warning("entity_missing_gid", entity_repr=repr(entity)[:200])
+                continue
+
+            user = User.from_api(entity)
+            writer.write_entity(workspace_gid, self.entity_type, gid, dataclasses.asdict(user))
+            count += 1
+
+        duration = time.monotonic() - start_time
+
+        log.info(
+            "extraction_complete",
+            count=count,
+            duration_seconds=round(duration, 2),
+            warning_count=len(warnings),
+        )
+
+        return ExtractionResult(
+            entity_type=self.entity_type,
+            count=count,
+            duration_seconds=round(duration, 2),
+            warnings=warnings,
+        )
 
 
 @dataclass
@@ -204,6 +258,8 @@ class ProjectExtractor(BaseExtractor):
     """Extracts all projects for a workspace via GET /projects?workspace={gid}.
 
     Overrides extract() to collect project GIDs while writing entities.
+    Constructs Project model instances to ensure last_fetch_time appears
+    in serialized JSON output.
     Returns ProjectExtractionResult with project_gids list for task extraction.
     Each project is written to output/{workspace_gid}/projects/{gid}.json.
     """
@@ -257,7 +313,8 @@ class ProjectExtractor(BaseExtractor):
                 log.warning("entity_missing_gid", entity_repr=repr(entity)[:200])
                 continue
 
-            writer.write_entity(workspace_gid, self.entity_type, gid, entity)
+            project = Project.from_api(entity)
+            writer.write_entity(workspace_gid, self.entity_type, gid, dataclasses.asdict(project))
             project_gids.append(gid)
             count += 1
 
