@@ -192,5 +192,5 @@ Note: Phase 4 (File Writer) depends only on Phase 1 and can run in parallel with
 | 5. Entity Extraction | 2/3 | In Progress | - |
 | 6. Workspace Orchestrator | 1/3 | In Progress | - |
 | 7. Scheduler | 0/5 | Not started | - |
-| 8. Testing | 0/7 | Not started | - |
+| 8. Testing | 2/4 | In Progress|  |
 | 9. Documentation & Polish | 0/5 | Not started | - |
