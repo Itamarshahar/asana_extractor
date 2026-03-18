@@ -91,7 +91,7 @@ graph LR
 
 - **AsanaClient** (`client.py`) — Async HTTP client wrapping aiohttp with PAT-based authentication, connection pooling (100 connections), and automatic retry on transient errors using tenacity (3 attempts, exponential backoff + jitter). Classifies errors into `AsanaTransientError` (5xx, connection failures) and `AsanaPermanentError` (4xx). Provides `paginated_get()` that follows `next_page.offset` until exhausted.
 
-- **RateLimitedClient** (`rate_limited_client.py`) — Drop-in wrapper around AsanaClient that composes three rate limiting primitives: per-workspace token bucket (~120 req/min), 429 pause coordination, and per-instance request semaphore (50 concurrent). Every single-entity `get()` flows through: `wait_if_paused` → `semaphore.acquire` → `bucket.acquire` → HTTP call → handle 429 if needed. Note: `paginated_get()` currently acquires the semaphore and token bucket once per call rather than per page — a known limitation documented below.
+- **RateLimitedClient** (`rate_limited_client.py`) — Drop-in wrapper around AsanaClient that composes three rate limiting primitives: per-workspace token bucket (~120 req/min), 429 pause coordination with Retry-After parsing, and a shared global request semaphore (50 concurrent). Every `get()` and every page of `paginated_get()` flows through: `wait_if_paused` → `semaphore.acquire` → `bucket.acquire` → HTTP call → handle 429 if needed. Rate limiting is applied per-page during pagination, preventing unbounded bursts from large entity sets.
 
 - **TokenBucket + WorkspaceRateLimiterRegistry** (`rate_limiter.py`) — Async token bucket with continuous refill at 2 tokens/sec (burst cap 10). The registry auto-creates one bucket per workspace on first request, ensuring per-workspace isolation. Also provides `RateLimiter429State` for 429 pause coordination and `GlobalRequestSemaphore` for backpressure.
 
@@ -130,7 +130,7 @@ graph TD
 
 - Each workspace gets its own `RateLimitedClient` with independent token bucket and 429 state — Workspace A hitting its rate limit does not slow down Workspace B.
 - Workspace extraction runs inside `try/except` — one workspace failing with an API error does not cancel or abort other workspaces.
-- Each `RateLimitedClient` has an `asyncio.Semaphore(50)` capping its in-flight HTTP requests. Note: the semaphore is per-client (i.e. per-workspace), not shared globally — with many concurrent workspaces, total in-flight requests can exceed 50. See Known Limitations below.
+- A shared `GlobalRequestSemaphore(50)` is created by the orchestrator and injected into all `RateLimitedClient` instances, capping total in-flight HTTP requests across all workspaces at 50.
 - Within each workspace, users and projects are extracted concurrently (Phase 1), then tasks are extracted concurrently across all discovered projects (Phase 2).
 
 ## Rate Limit Handling
@@ -145,14 +145,14 @@ Each workspace gets a `TokenBucket` refilling at 2 tokens/sec (~120 req/min, con
 
 When the API returns `429 Too Many Requests`:
 
-1. The `RateLimiter429State` **pauses all requests** for that workspace for 60 seconds. (The `Retry-After` header is not currently parsed — a fixed 60-second pause is always used. See Known Limitations.)
+1. The `AsanaClient` parses the `Retry-After` response header and attaches it to the exception. The `RateLimiter429State` **pauses all requests** for that workspace for the duration specified by `Retry-After` (falls back to 60 seconds if the header is absent or malformed).
 2. After the pause, **resets the token bucket to 0** to prevent a burst of queued requests firing simultaneously.
 3. The failed request is retried once after the pause.
 4. After **3 consecutive 429s** without a successful request in between, the workspace is **failed for this cycle** (`AsanaTransientError` raised) — preventing an infinite retry loop.
 
 ### 3. Backpressure (Request Semaphore)
 
-An `asyncio.Semaphore(50)` in each `RateLimitedClient` caps the number of concurrent in-flight HTTP requests for that workspace. This prevents any single workspace from overwhelming the API. Note: the semaphore is per-workspace (per-client instance), not shared globally across all workspaces.
+A shared `GlobalRequestSemaphore(50)` created by the orchestrator and injected into all `RateLimitedClient` instances caps the total number of concurrent in-flight HTTP requests across all workspaces. This prevents the system from overwhelming the API when many workspaces are being extracted simultaneously.
 
 **How the tiers compose:** Every request passes through `wait_if_paused()` → `semaphore.acquire()` → `bucket.acquire()` → HTTP call → 429 handling if needed.
 
@@ -170,13 +170,9 @@ An `asyncio.Semaphore(50)` in each `RateLimitedClient` caps the number of concur
 
 ## Known Limitations
 
-Three implementation gaps exist in the current rate limiting layer. They don't affect correctness for small-to-moderate workloads but would matter at scale:
-
-1. **Retry-After header not parsed** — When the API returns a `429`, the `Retry-After` response header is not extracted. The system always pauses for a fixed 60 seconds. The plumbing exists in `RateLimiter429State.record_429(retry_after=...)` but the HTTP layer always passes `None`. Fix: extract the header in the 429 handler in `rate_limited_client.py` and pass it through.
-
-2. **`paginated_get()` acquires rate limits once per call, not per page** — The `RateLimitedClient.paginated_get()` method acquires the semaphore and token bucket once for the entire pagination stream. Subsequent pages (potentially dozens for large entity sets) bypass both the token bucket and semaphore. Fix: restructure to acquire per-page, either by wrapping each page's HTTP call or by moving rate limiting into the pagination loop.
-
-3. **Request semaphore is per-workspace, not global** — Each `RateLimitedClient` instance creates its own `GlobalRequestSemaphore`. Since the orchestrator creates one client per workspace, 10 concurrent workspaces could have up to 500 in-flight requests (10 x 50), not 50 total. Fix: create a single semaphore in the orchestrator and inject it into all clients.
+- **No delta/incremental extraction** — Every cycle extracts all entities from scratch. For very large workspaces, incremental extraction (fetching only entities modified since the last cycle) would reduce API calls and cycle duration significantly.
+- **Single-process architecture** — All workspaces are processed within a single Python process. At 10,000+ workspaces, distributing work across multiple processes or nodes with a job queue would improve throughput.
+- **Filesystem output only** — Entities are written as individual JSON files. At scale, a database or object store would provide better query capabilities, deduplication, and durability.
 
 ## Testing
 
