@@ -15,7 +15,7 @@ Build a production-grade Asana data extractor in 9 phases: starting with project
 - [x] **Phase 7: Scheduler** - Periodic execution with skip-on-overlap and graceful shutdown
 - [x] **Phase 8: Testing** - Unit tests, integration tests, mypy, ruff
 - [ ] **Phase 9: Documentation & Polish** - README, final cleanup, end-to-end validation (paused at e2e checkpoint)
-- [ ] **Phase 10: Gap Closure** - Fix Retry-After parsing, per-page rate limiting, global semaphore
+- [x] **Phase 10: Gap Closure** - Fix Retry-After parsing, per-page rate limiting, global semaphore (completed 2026-03-18)
 
 ## Phase Details
 
@@ -208,4 +208,4 @@ Note: Phase 4 (File Writer) depends only on Phase 1 and can run in parallel with
 | 7. Scheduler | 2/2 | Complete | 2026-03-18 |
 | 8. Testing | 5/5 | Complete | 2026-03-18 |
 | 9. Documentation & Polish | 2/3 | In Progress (paused at e2e checkpoint) | - |
-| 10. Gap Closure | 3/3 | Complete | 2026-03-18 |
+| 10. Gap Closure | 3/3 | Complete   | 2026-03-18 |

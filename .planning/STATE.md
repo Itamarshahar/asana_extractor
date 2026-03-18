@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 10-03-PLAN.md (global semaphore)
-last_updated: "2026-03-18T19:41:33.598Z"
-last_activity: "2026-03-18 — Completed 10-03: global semaphore injection into all RateLimitedClient instances"
+stopped_at: Completed 10-01-PLAN.md (Retry-After propagation)
+last_updated: "2026-03-18T19:43:38.258Z"
+last_activity: "2026-03-18 — Completed 10-01: Retry-After header propagation from HTTP 429 to record_429()"
 progress:
   total_phases: 10
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 34
-  completed_plans: 32
+  completed_plans: 33
   percent: 94
 ---
 
@@ -28,9 +28,9 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 Phase: 10 of 10 (Gap Closure — complete)
 Plan: 3 of 3 in current phase (all plans complete)
 Status: Phase 10 complete
-Last activity: 2026-03-18 — Completed 10-03: global semaphore injection into all RateLimitedClient instances
+Last activity: 2026-03-18 — Completed 10-01: Retry-After header propagation from HTTP 429 to record_429()
 
-Progress: [█████████░] 94%
+Progress: [██████████] 97%
 
 ## Performance Metrics
 
@@ -74,6 +74,7 @@ Progress: [█████████░] 94%
 | Phase 08-testing P05 | 13min | 1 tasks | 1 files |
 | Phase 10-gap-closure P02 | 6 min | 2 tasks | 2 files |
 | Phase 10-gap-closure P03 | 8min | 2 tasks | 3 files |
+| Phase 10-gap-closure P01 | 9 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,8 @@ Recent decisions affecting current work:
 - [Phase 10-02]: Added _execute_get_envelope() for full Asana envelope access — _execute_get() unwraps data, losing next_page needed for pagination
 - [Phase 10-02]: Rewrote paginated_get() as direct loop (Option A) instead of delegating to client.paginated_get() — enables per-page rate limiting
 - [Phase 10-gap-closure]: Semaphore injection via constructor parameter with None default for backward compatibility
+- [Phase 10-01]: Retry-After carried as attribute on AsanaTransientError rather than separate return channel
+- [Phase 10-01]: Malformed/missing Retry-After defaults to None, letting record_429() use its 60s fallback
 
 ### Pending Todos
 
@@ -135,6 +138,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T19:41:33.592Z
-Stopped at: Completed 10-03-PLAN.md (global semaphore)
+Last session: 2026-03-18T19:43:33.684Z
+Stopped at: Completed 10-01-PLAN.md (Retry-After propagation)
 Resume file: None
