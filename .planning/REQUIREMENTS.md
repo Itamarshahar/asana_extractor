@@ -30,10 +30,10 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Rate Limiting
 
 - [x] **RATE-01**: Program enforces per-workspace rate limiting (~150 requests per minute per token) — per-page rate limiting in paginated_get ensures no unbounded bursts
-- [~] **RATE-02**: Program handles 429 Too Many Requests responses by pausing and retrying — but does NOT parse the Retry-After header (uses fixed 60s pause)
+- [x] **RATE-02**: Program handles 429 Too Many Requests responses by pausing and retrying, parsing the Retry-After header for pause duration
 - [x] **RATE-03**: After a 429 response, program pauses requests for at least 60 seconds (no aggressive retry — rejected requests count against quota)
 - [x] **RATE-04**: Program uses exponential backoff with jitter for retries on transient errors (500, timeout, network)
-- [x] **RATE-05**: Concurrent in-flight requests are capped via semaphore — per-page rate limiting ensures paginated_get acquires tokens per page, not per call
+- [x] **RATE-05**: Concurrent in-flight requests are capped via a single global semaphore shared across all workspace clients (50 total, not 50 per workspace)
 - [x] **RATE-06**: One workspace's rate limiting does not block or slow down other workspaces
 
 ### Output
@@ -129,10 +129,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EXTR-08 | Phase 5 | Complete |
 | EXTR-09 | Phase 5 | Complete |
 | RATE-01 | Phase 3, Phase 10 | Complete |
-| RATE-02 | Phase 3 | Partial — 429 handled but Retry-After header not parsed (fixed 60s) |
+| RATE-02 | Phase 3, Phase 10 | Complete |
 | RATE-03 | Phase 3 | Complete |
 | RATE-04 | Phase 3 | Complete |
-| RATE-05 | Phase 3, Phase 10 | Complete — per-page rate limiting + semaphore per workspace |
+| RATE-05 | Phase 3, Phase 10 | Complete — global semaphore shared across all workspace clients |
 | RATE-06 | Phase 3 | Complete |
 | OUT-01 | Phase 4 | Complete |
 | OUT-02 | Phase 4 | Complete |

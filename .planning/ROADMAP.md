@@ -187,9 +187,9 @@ Plans:
 **Plans**: 3 plans (all Wave 1 — independent, can run in parallel)
 
 Plans:
-- [ ] 10-01-PLAN.md — Retry-After header parsing: extract from 429 response, propagate to record_429()
+- [x] 10-01-PLAN.md — Retry-After header parsing: extract from 429 response, propagate to record_429()
 - [x] 10-02-PLAN.md — Per-page rate limiting: restructure paginated_get() to acquire tokens per page
-- [ ] 10-03-PLAN.md — Global semaphore: create once in orchestrator, inject into all clients
+- [x] 10-03-PLAN.md — Global semaphore: create once in orchestrator, inject into all clients
 
 ## Progress
 
@@ -208,4 +208,4 @@ Note: Phase 4 (File Writer) depends only on Phase 1 and can run in parallel with
 | 7. Scheduler | 2/2 | Complete | 2026-03-18 |
 | 8. Testing | 5/5 | Complete | 2026-03-18 |
 | 9. Documentation & Polish | 2/3 | In Progress (paused at e2e checkpoint) | - |
-| 10. Gap Closure | 1/3 | In Progress | - |
+| 10. Gap Closure | 3/3 | Complete | 2026-03-18 |
