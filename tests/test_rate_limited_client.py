@@ -277,3 +277,79 @@ class TestRateLimitedClientPaginatedGet:
         # 3 pages → 3 acquire() calls
         assert acquire_count == 3
         assert results == [{"gid": "1"}, {"gid": "2"}, {"gid": "3"}]
+
+
+class TestSharedGlobalSemaphore:
+    """Tests verifying GlobalRequestSemaphore is shared across clients."""
+
+    async def test_shared_semaphore_is_same_object(self) -> None:
+        """Two clients with the same semaphore share one object (identity check)."""
+        from asana_extractor.rate_limiter import GlobalRequestSemaphore
+
+        shared = GlobalRequestSemaphore()
+        client_a = RateLimitedClient(FakePAT(), global_semaphore=shared)
+        client_b = RateLimitedClient(FakePAT(), global_semaphore=shared)
+
+        assert client_a._semaphore is client_b._semaphore
+        assert client_a._semaphore is shared
+
+    async def test_default_creates_independent_semaphore(self) -> None:
+        """Without explicit semaphore, each client gets its own (backward compat)."""
+        client_a = RateLimitedClient(FakePAT())
+        client_b = RateLimitedClient(FakePAT())
+
+        assert client_a._semaphore is not client_b._semaphore
+
+    async def test_orchestrator_shares_semaphore_across_workspace_clients(
+        self,
+    ) -> None:
+        """WorkspaceOrchestrator injects the same semaphore into all clients."""
+        from asana_extractor.config import Settings
+        from asana_extractor.orchestrator import WorkspaceOrchestrator
+        from asana_extractor.rate_limiter import GlobalRequestSemaphore
+        from asana_extractor.tenant import TenantConfig
+
+        settings = Settings(
+            output_dir="output",
+            extraction_interval=300,
+            max_concurrent_workspaces=5,
+        )
+        orchestrator = WorkspaceOrchestrator(settings)
+
+        # Capture semaphore args passed to RateLimitedClient during run()
+        captured_semaphores: list[GlobalRequestSemaphore | None] = []
+        original_init = RateLimitedClient.__init__
+
+        def capturing_init(
+            self: RateLimitedClient,
+            secrets_provider: object,
+            global_semaphore: GlobalRequestSemaphore | None = None,
+        ) -> None:
+            captured_semaphores.append(global_semaphore)
+            original_init(self, secrets_provider, global_semaphore=global_semaphore)  # type: ignore[arg-type]
+
+        tenants = [
+            TenantConfig(workspace_gid="ws1", pat="pat1"),
+            TenantConfig(workspace_gid="ws2", pat="pat2"),
+            TenantConfig(workspace_gid="ws3", pat="pat3"),
+        ]
+
+        with patch.object(RateLimitedClient, "__init__", capturing_init):
+            with patch(
+                "asana_extractor.extractors.extract_workspace",
+                new_callable=AsyncMock,
+            ):
+                with patch.object(
+                    RateLimitedClient, "__aenter__", AsyncMock(return_value=MagicMock())
+                ):
+                    with patch.object(
+                        RateLimitedClient, "__aexit__", AsyncMock(return_value=False)
+                    ):
+                        await orchestrator.run(tenants)
+
+        # All 3 clients got a semaphore
+        assert len(captured_semaphores) == 3
+        # All are the same object (the orchestrator's shared semaphore)
+        assert all(s is captured_semaphores[0] for s in captured_semaphores)
+        # And it's the orchestrator's own instance
+        assert captured_semaphores[0] is orchestrator._global_request_semaphore
