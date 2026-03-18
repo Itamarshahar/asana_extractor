@@ -130,14 +130,11 @@ Plans:
   2. If a cycle is still running when the next interval fires, the new cycle is skipped with a warning log
   3. SIGTERM/SIGINT triggers graceful shutdown — in-flight work completes before exit
   4. All log entries are structured JSON with workspace context
-**Plans**: 5 plans
+**Plans**: 2 plans
 
 Plans:
-- [ ] 07-01: Async periodic scheduler (asyncio-based interval loop)
-- [ ] 07-02: Skip-on-overlap detection (flag/lock preventing concurrent cycles)
-- [ ] 07-03: Signal handling (SIGTERM/SIGINT → graceful shutdown)
-- [ ] 07-04: Main entry point (wire config → secrets → client → scheduler)
-- [ ] 07-05: Structured logging integration across all components (structlog context binding)
+- [ ] 07-01-PLAN.md — Config extension (shutdown_timeout_seconds) + ExtractionScheduler class (interval loop, skip-on-overlap, signal handling, graceful shutdown)
+- [ ] 07-02-PLAN.md — Main entry point wiring (config → logging → secrets → orchestrator → scheduler, --run-once flag) + package exports
 
 ### Phase 8: Testing
 **Goal**: Comprehensive test suite validating all components — API client, rate limiter, file writer, extraction, scheduling.

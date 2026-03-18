@@ -45,9 +45,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Scheduling
 
-- [ ] **SCHED-01**: Extraction runs periodically at a configurable interval (supports 5-minute and 30-second modes)
-- [ ] **SCHED-02**: Skip-on-overlap: if an extraction cycle is still running when the next interval fires, the new cycle is skipped and a warning is logged
-- [ ] **SCHED-03**: Program supports graceful shutdown (SIGTERM/SIGINT) — in-flight requests complete before exit
+- [x] **SCHED-01**: Extraction runs periodically at a configurable interval (supports 5-minute and 30-second modes)
+- [x] **SCHED-02**: Skip-on-overlap: if an extraction cycle is still running when the next interval fires, the new cycle is skipped and a warning is logged
+- [x] **SCHED-03**: Program supports graceful shutdown (SIGTERM/SIGINT) — in-flight requests complete before exit
 
 ### Error Handling
 
@@ -138,9 +138,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OUT-02 | Phase 4 | Pending |
 | OUT-03 | Phase 4 | Pending |
 | OUT-04 | Phase 4 | Pending |
-| SCHED-01 | Phase 7 | Pending |
-| SCHED-02 | Phase 7 | Pending |
-| SCHED-03 | Phase 7 | Pending |
+| SCHED-01 | Phase 7 | Complete |
+| SCHED-02 | Phase 7 | Complete |
+| SCHED-03 | Phase 7 | Complete |
 | ERR-01 | Phase 2 | Complete |
 | ERR-02 | Phase 2 | Complete |
 | ERR-03 | Phase 2 | Complete |
