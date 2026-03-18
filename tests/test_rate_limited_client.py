@@ -17,12 +17,17 @@ class FakePAT(SecretsProvider):
         return "fake-pat-token"
 
 
-def make_mock_response(status: int, body: dict[str, object] | None = None) -> MagicMock:
+def make_mock_response(
+    status: int,
+    body: dict[str, object] | None = None,
+    headers: dict[str, str] | None = None,
+) -> MagicMock:
     """Create a mock aiohttp response context manager."""
     mock_resp = MagicMock()
     mock_resp.status = status
     mock_resp.json = AsyncMock(return_value=body or {})
     mock_resp.text = AsyncMock(return_value="error body")
+    mock_resp.headers = headers or {}
     mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
     mock_resp.__aexit__ = AsyncMock(return_value=False)
     return mock_resp
@@ -224,3 +229,51 @@ class TestRateLimitedClientPaginatedGet:
                     results.append(entity)
 
         assert results == [{"gid": "1"}, {"gid": "2"}]
+
+    async def test_paginated_get_acquires_bucket_per_page(self) -> None:
+        """bucket.acquire() is called once per page, not once per paginated_get call.
+
+        For a 3-page result set, acquire() must be called 3 times — proving
+        per-page rate limiting (not per-call).
+        """
+        import json
+
+        # 3-page response: page1 → page2 → page3
+        pages = [
+            {"data": [{"gid": "1"}], "next_page": {"offset": "off1", "uri": "/u?offset=off1"}},
+            {"data": [{"gid": "2"}], "next_page": {"offset": "off2", "uri": "/u?offset=off2"}},
+            {"data": [{"gid": "3"}], "next_page": None},
+        ]
+        call_idx = 0
+
+        def fake_session_get(url: str, **kwargs: object) -> MagicMock:
+            nonlocal call_idx
+            body = pages[call_idx]
+            call_idx += 1
+            resp = MagicMock()
+            resp.status = 200
+            resp.json = AsyncMock(return_value=body)
+            resp.text = AsyncMock(return_value=json.dumps(body))
+            resp.__aenter__ = AsyncMock(return_value=resp)
+            resp.__aexit__ = AsyncMock(return_value=False)
+            return resp
+
+        async with RateLimitedClient(FakePAT()) as client:
+            bucket = client._registry.get_limiter("ws1")
+            original_acquire = bucket.acquire
+            acquire_count = 0
+
+            async def counting_acquire() -> None:
+                nonlocal acquire_count
+                acquire_count += 1
+                await original_acquire()
+
+            with patch.object(client._client._session, "get", side_effect=fake_session_get):
+                with patch.object(bucket, "acquire", counting_acquire):
+                    results = []
+                    async for entity in client.paginated_get("/users", workspace_gid="ws1"):
+                        results.append(entity)
+
+        # 3 pages → 3 acquire() calls
+        assert acquire_count == 3
+        assert results == [{"gid": "1"}, {"gid": "2"}, {"gid": "3"}]
