@@ -66,11 +66,11 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
-- [ ] 03-01: Token bucket rate limiter implementation
-- [ ] 03-02: 429 response handler with Retry-After integration
-- [ ] 03-03: Per-workspace rate limiter registry (create/get limiter per workspace GID)
-- [ ] 03-04: Global concurrency semaphore for in-flight request coordination
-- [ ] 03-05: Integration with API client (rate limiter middleware wrapping requests)
+- [ ] 03-01-PLAN.md — TokenBucket (async acquire, continuous refill, reset_tokens) + WorkspaceRateLimiterRegistry (per-workspace isolation)
+- [ ] 03-02-PLAN.md — RateLimiter429State: 429 pause coordination, Retry-After handling, consecutive 429 fail-fast, bucket reset after pause
+- [ ] 03-03-PLAN.md — GlobalRequestSemaphore: asyncio.Semaphore wrapper capping 50 concurrent in-flight requests
+- [ ] 03-04-PLAN.md — RateLimitedClient: drop-in AsanaClient wrapper composing all rate limiting primitives
+- [ ] 03-05-PLAN.md — Package wiring: export RateLimitedClient from __init__.py, clean 429 placeholder from client.py
 
 ### Phase 4: File Writer
 **Goal**: Build the atomic JSON file writer that creates the output directory structure and writes entities safely.
