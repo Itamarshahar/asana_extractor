@@ -54,7 +54,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **ERR-01**: Transient API errors (5xx, timeouts, connection errors) are retried with exponential backoff
 - [x] **ERR-02**: Permanent API errors (4xx other than 429) are logged and skipped without crashing
 - [x] **ERR-03**: All errors include sufficient context for debugging (workspace GID, entity type, endpoint, HTTP status)
-- [ ] **ERR-04**: Structured logging (JSON format) with workspace context in all log entries
+- [x] **ERR-04**: Structured logging (JSON format) with workspace context in all log entries
 
 ### Testing
 
@@ -144,7 +144,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ERR-01 | Phase 2 | Complete |
 | ERR-02 | Phase 2 | Complete |
 | ERR-03 | Phase 2 | Complete |
-| ERR-04 | Phase 7 | Pending |
+| ERR-04 | Phase 7 | Complete |
 | TEST-01 | Phase 8 | Pending |
 | TEST-02 | Phase 8 | Pending |
 | TEST-03 | Phase 8 | Pending |
