@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-03-18T11:29:50.052Z"
-last_activity: 2026-03-18 — Completed 09-01 (project artifact cleanup)
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-03-18T11:34:56Z"
+last_activity: 2026-03-18 — Completed 09-02 (README.md)
 progress:
   total_phases: 9
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 30
-  completed_plans: 27
-  percent: 87
+  completed_plans: 30
+  percent: 97
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 ## Current Position
 
 Phase: 9 of 9 (Documentation & Polish)
-Plan: 2 of 3 in current phase
+Plan: 3 of 3 in current phase
 Status: Executing
-Last activity: 2026-03-18 — Completed 09-01 (project artifact cleanup)
+Last activity: 2026-03-18 — Completed 09-02 (README.md)
 
-Progress: [█████████░] 87%
+Progress: [██████████] 97%
 
 ## Performance Metrics
 
@@ -69,6 +69,8 @@ Progress: [█████████░] 87%
 | Phase 08-testing P02 | 4min | 1 tasks | 1 files |
 | Phase 09-documentation-polish P01 | 1 min | 2 tasks | 4 files |
 | Phase 08-testing P03 | 1min | 1 tasks | 1 files |
+| Phase 08-testing P04 | 3min | 2 tasks | 9 files |
+| Phase 09-documentation-polish P02 | 5 min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -111,6 +113,9 @@ Recent decisions affecting current work:
 - [Phase 09-documentation-polish]: config.json.example uses extraction_interval=300 (5min default) matching Settings model
 - [Phase 09-documentation-polish]: pydantic-settings removed — project uses plain pydantic.BaseModel, not BaseSettings
 - [Phase 08-testing]: Exact URL matching with query params for aioresponses mocking
+- [Phase 08-04]: pyproject.toml overrides already in place — no config changes needed for Task 1
+- [Phase 09-02]: Documented rate as ~120 req/min matching actual code (2 tokens/sec), not plan's ~150
+- [Phase 09-02]: Included tenants in config table — present in config.json.example though loaded separately from Settings model
 
 ### Pending Todos
 
@@ -123,6 +128,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T11:29:50.046Z
-Stopped at: Completed 08-03-PLAN.md
+Last session: 2026-03-18T11:34:56Z
+Stopped at: Completed 09-02-PLAN.md
 Resume file: None

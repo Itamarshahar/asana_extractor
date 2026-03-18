@@ -68,9 +68,9 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Documentation
 
 - [x] **DOC-01**: README explains how to run the program (setup, configuration, execution)
-- [ ] **DOC-02**: README explains the system design and architecture
-- [ ] **DOC-03**: README explains scalability considerations (how the design handles thousands of workspaces/entities)
-- [ ] **DOC-04**: README explains the rate limit handling strategy
+- [x] **DOC-02**: README explains the system design and architecture
+- [x] **DOC-03**: README explains scalability considerations (how the design handles thousands of workspaces/entities)
+- [x] **DOC-04**: README explains the rate limit handling strategy
 
 ## v2 Requirements
 
@@ -152,9 +152,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-05 | Phase 8 | Pending |
 | TEST-06 | Phase 8 | Pending |
 | DOC-01 | Phase 9 | Complete |
-| DOC-02 | Phase 9 | Pending |
-| DOC-03 | Phase 9 | Pending |
-| DOC-04 | Phase 9 | Pending |
+| DOC-02 | Phase 9 | Complete |
+| DOC-03 | Phase 9 | Complete |
+| DOC-04 | Phase 9 | Complete |
 
 **Coverage:**
 - v1 requirements: 41 total
