@@ -1,6 +1,9 @@
 # Runtime configuration (environment-specific, may contain sensitive values)
 config.json
 
+# Extraction output (generated data, may contain sensitive Asana data)
+output/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
