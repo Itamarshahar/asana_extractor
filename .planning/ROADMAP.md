@@ -7,9 +7,9 @@ Build a production-grade Asana data extractor in 9 phases: starting with project
 ## Phases
 
 - [x] **Phase 1: Project Foundation** - Package structure, configuration, secrets, dev tooling (completed 2026-03-17)
-- [ ] **Phase 2: API Client** - Async HTTP client with auth, pagination, and retry logic
-- [ ] **Phase 3: Rate Limiter** - Per-workspace token bucket rate limiting with 429/Retry-After handling
-- [ ] **Phase 4: File Writer** - Atomic JSON file output with directory structure management
+- [x] **Phase 2: API Client** - Async HTTP client with auth, pagination, and retry logic (completed 2026-03-18)
+- [x] **Phase 3: Rate Limiter** - Per-workspace token bucket rate limiting with 429/Retry-After handling (completed 2026-03-18)
+- [x] **Phase 4: File Writer** - Atomic JSON file output with directory structure management (completed 2026-03-18)
 - [ ] **Phase 5: Entity Extraction** - User, project, and task extractors with workspace discovery
 - [ ] **Phase 6: Workspace Orchestrator** - Concurrent workspace processing with isolation and semaphore
 - [ ] **Phase 7: Scheduler** - Periodic execution with skip-on-overlap and graceful shutdown
@@ -31,11 +31,11 @@ Build a production-grade Asana data extractor in 9 phases: starting with project
 **Plans**: 5 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Package scaffold: pyproject.toml (hatchling, all runtime deps), src/asana_extractor/ package, py.typed marker, editable install
-- [ ] 01-02-PLAN.md — Configuration module: Settings pydantic model from config.json, load_config() with fail-fast validation and clear error messages
-- [ ] 01-03-PLAN.md — Secrets interface: SecretsProvider ABC + EnvSecretsProvider (.env via python-dotenv), extensible without modifying extraction code
-- [ ] 01-04-PLAN.md — Structured logging: configure_logging() + get_logger() using structlog with JSON output and workspace context binding
-- [ ] 01-05-PLAN.md — Dev tooling: ruff (lint/format), mypy (strict), pytest (asyncio_mode=auto) all configured in pyproject.toml; zero errors on codebase
+- [x] 01-01-PLAN.md — Package scaffold: pyproject.toml (hatchling, all runtime deps), src/asana_extractor/ package, py.typed marker, editable install
+- [x] 01-02-PLAN.md — Configuration module: Settings pydantic model from config.json, load_config() with fail-fast validation and clear error messages
+- [x] 01-03-PLAN.md — Secrets interface: SecretsProvider ABC + EnvSecretsProvider (.env via python-dotenv), extensible without modifying extraction code
+- [x] 01-04-PLAN.md — Structured logging: configure_logging() + get_logger() using structlog with JSON output and workspace context binding
+- [x] 01-05-PLAN.md — Dev tooling: ruff (lint/format), mypy (strict), pytest (asyncio_mode=auto) all configured in pyproject.toml; zero errors on codebase
 
 ### Phase 2: API Client
 **Goal**: Build the async HTTP client that handles authentication, auto-pagination, and transient error retries — the foundation all extraction logic will use.
@@ -50,8 +50,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Exception hierarchy + base AsanaClient with auth, get(), retry, error classification
-- [ ] 02-02-PLAN.md — Auto-pagination async generator (paginated_get) + package exports
+- [x] 02-01-PLAN.md — Exception hierarchy + base AsanaClient with auth, get(), retry, error classification
+- [x] 02-02-PLAN.md — Auto-pagination async generator (paginated_get) + package exports
 
 ### Phase 3: Rate Limiter
 **Goal**: Implement per-workspace rate limiting that respects Asana's 429/Retry-After and prevents one workspace from blocking others.
@@ -66,11 +66,11 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — TokenBucket (async acquire, continuous refill, reset_tokens) + WorkspaceRateLimiterRegistry (per-workspace isolation)
-- [ ] 03-02-PLAN.md — RateLimiter429State: 429 pause coordination, Retry-After handling, consecutive 429 fail-fast, bucket reset after pause
-- [ ] 03-03-PLAN.md — GlobalRequestSemaphore: asyncio.Semaphore wrapper capping 50 concurrent in-flight requests
-- [ ] 03-04-PLAN.md — RateLimitedClient: drop-in AsanaClient wrapper composing all rate limiting primitives
-- [ ] 03-05-PLAN.md — Package wiring: export RateLimitedClient from __init__.py, clean 429 placeholder from client.py
+- [x] 03-01-PLAN.md — TokenBucket (async acquire, continuous refill, reset_tokens) + WorkspaceRateLimiterRegistry (per-workspace isolation)
+- [x] 03-02-PLAN.md — RateLimiter429State: 429 pause coordination, Retry-After handling, consecutive 429 fail-fast, bucket reset after pause
+- [x] 03-03-PLAN.md — GlobalRequestSemaphore: asyncio.Semaphore wrapper capping 50 concurrent in-flight requests
+- [x] 03-04-PLAN.md — RateLimitedClient: drop-in AsanaClient wrapper composing all rate limiting primitives
+- [x] 03-05-PLAN.md — Package wiring: export RateLimitedClient from __init__.py, clean 429 placeholder from client.py
 
 ### Phase 4: File Writer
 **Goal**: Build the atomic JSON file writer that creates the output directory structure and writes entities safely.
@@ -84,9 +84,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: Atomic file writer (write to .tmp, os.replace to final path)
-- [ ] 04-02: Directory structure manager (create output/{workspace}/{type}/ on demand)
-- [ ] 04-03: JSON serialization with orjson
+- [x] 04-01: Atomic file writer (write to .tmp, os.replace to final path)
+- [x] 04-02: Directory structure manager (create output/{workspace}/{type}/ on demand)
+- [x] 04-03: JSON serialization with orjson
 
 ### Phase 5: Entity Extraction
 **Goal**: Implement extraction logic for all entity types (workspaces, users, projects, tasks) with streaming writes to disk.
@@ -102,8 +102,8 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Base extraction types (ExtractionResult, BaseExtractor ABC) + workspace discovery function
-- [ ] 05-02-PLAN.md — Entity extractors: UserExtractor, ProjectExtractor (with GID collection), TaskExtractor (concurrent per-project)
+- [x] 05-01-PLAN.md — Base extraction types (ExtractionResult, BaseExtractor ABC) + workspace discovery function
+- [x] 05-02-PLAN.md — Entity extractors: UserExtractor, ProjectExtractor (with GID collection), TaskExtractor (concurrent per-project)
 - [ ] 05-03-PLAN.md — Workspace extraction orchestrator (users||projects → tasks) + package exports + edge cases
 
 ### Phase 6: Workspace Orchestrator
@@ -117,7 +117,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — Data contracts: TenantConfig, TenantProvider ABC, OrchestratorResult, WorkspaceError (tenant.py)
+- [x] 06-01-PLAN.md — Data contracts: TenantConfig, TenantProvider ABC, OrchestratorResult, WorkspaceError (tenant.py)
 - [ ] 06-02-PLAN.md — WorkspaceOrchestrator: asyncio.gather, per-workspace try/except isolation, semaphore, run() always returns OrchestratorResult
 - [ ] 06-03-PLAN.md — EnvTenantProvider (reads tenants from config.json) + package __init__.py exports
 
@@ -189,11 +189,11 @@ Note: Phase 4 (File Writer) depends only on Phase 1 and can run in parallel with
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Project Foundation | 5/5 | Complete   | 2026-03-17 |
-| 2. API Client | 0/2 | Not started | - |
-| 3. Rate Limiter | 0/5 | Not started | - |
-| 4. File Writer | 0/3 | Not started | - |
-| 5. Entity Extraction | 0/6 | Not started | - |
-| 6. Workspace Orchestrator | 0/3 | Not started | - |
+| 2. API Client | 2/2 | Complete | 2026-03-18 |
+| 3. Rate Limiter | 5/5 | Complete | 2026-03-18 |
+| 4. File Writer | 3/3 | Complete | 2026-03-18 |
+| 5. Entity Extraction | 2/3 | In Progress | - |
+| 6. Workspace Orchestrator | 1/3 | In Progress | - |
 | 7. Scheduler | 0/5 | Not started | - |
 | 8. Testing | 0/7 | Not started | - |
 | 9. Documentation & Polish | 0/5 | Not started | - |

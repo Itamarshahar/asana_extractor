@@ -24,7 +24,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **EXTR-05**: All extraction endpoints handle API pagination correctly (offset-based, follow next_page until None)
 - [x] **EXTR-06**: Workspaces are extracted concurrently using asyncio (not sequentially)
 - [x] **EXTR-07**: One workspace's failure does not abort extraction of other workspaces (workspace isolation)
-- [ ] **EXTR-08**: Empty workspaces (0 users, 0 projects) are handled without error
+- [x] **EXTR-08**: Empty workspaces (0 users, 0 projects) are handled without error
 - [x] **EXTR-09**: Entities are written to disk as they are extracted — not buffered in memory (avoids excessive memory usage at scale)
 
 ### Rate Limiting
@@ -126,7 +126,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EXTR-05 | Phase 2 | Complete |
 | EXTR-06 | Phase 6 | Complete |
 | EXTR-07 | Phase 6 | Complete |
-| EXTR-08 | Phase 5 | Pending |
+| EXTR-08 | Phase 5 | Complete |
 | EXTR-09 | Phase 5 | Complete |
 | RATE-01 | Phase 3 | Pending |
 | RATE-02 | Phase 3 | Pending |
