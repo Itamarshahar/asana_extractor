@@ -10,11 +10,12 @@ Build a production-grade Asana data extractor in 9 phases: starting with project
 - [x] **Phase 2: API Client** - Async HTTP client with auth, pagination, and retry logic (completed 2026-03-18)
 - [x] **Phase 3: Rate Limiter** - Per-workspace token bucket rate limiting with 429/Retry-After handling (completed 2026-03-18)
 - [x] **Phase 4: File Writer** - Atomic JSON file output with directory structure management (completed 2026-03-18)
-- [ ] **Phase 5: Entity Extraction** - User, project, and task extractors with workspace discovery
-- [ ] **Phase 6: Workspace Orchestrator** - Concurrent workspace processing with isolation and semaphore
-- [ ] **Phase 7: Scheduler** - Periodic execution with skip-on-overlap and graceful shutdown
-- [ ] **Phase 8: Testing** - Unit tests, integration tests, mypy, ruff
-- [ ] **Phase 9: Documentation & Polish** - README, final cleanup, end-to-end validation
+- [x] **Phase 5: Entity Extraction** - User, project, and task extractors with workspace discovery
+- [x] **Phase 6: Workspace Orchestrator** - Concurrent workspace processing with isolation and semaphore
+- [x] **Phase 7: Scheduler** - Periodic execution with skip-on-overlap and graceful shutdown
+- [x] **Phase 8: Testing** - Unit tests, integration tests, mypy, ruff
+- [ ] **Phase 9: Documentation & Polish** - README, final cleanup, end-to-end validation (paused at e2e checkpoint)
+- [ ] **Phase 10: Gap Closure** - Fix Retry-After parsing, per-page rate limiting, global semaphore
 
 ## Phase Details
 
@@ -104,7 +105,7 @@ Plans:
 Plans:
 - [x] 05-01-PLAN.md — Base extraction types (ExtractionResult, BaseExtractor ABC) + workspace discovery function
 - [x] 05-02-PLAN.md — Entity extractors: UserExtractor, ProjectExtractor (with GID collection), TaskExtractor (concurrent per-project)
-- [ ] 05-03-PLAN.md — Workspace extraction orchestrator (users||projects → tasks) + package exports + edge cases
+- [x] 05-03-PLAN.md — Workspace extraction orchestrator (users||projects → tasks) + package exports + edge cases
 
 ### Phase 6: Workspace Orchestrator
 **Goal**: Run extraction across all workspaces concurrently with isolation — one workspace's failure doesn't affect others.
@@ -118,8 +119,8 @@ Plans:
 
 Plans:
 - [x] 06-01-PLAN.md — Data contracts: TenantConfig, TenantProvider ABC, OrchestratorResult, WorkspaceError (tenant.py)
-- [ ] 06-02-PLAN.md — WorkspaceOrchestrator: asyncio.gather, per-workspace try/except isolation, semaphore, run() always returns OrchestratorResult
-- [ ] 06-03-PLAN.md — EnvTenantProvider (reads tenants from config.json) + package __init__.py exports
+- [x] 06-02-PLAN.md — WorkspaceOrchestrator: asyncio.gather, per-workspace try/except isolation, semaphore, run() always returns OrchestratorResult
+- [x] 06-03-PLAN.md — EnvTenantProvider (reads tenants from config.json) + package __init__.py exports
 
 ### Phase 7: Scheduler
 **Goal**: Add periodic execution with skip-on-overlap and graceful shutdown, making the extractor a long-running service.
@@ -133,8 +134,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — Config extension (shutdown_timeout_seconds) + ExtractionScheduler class (interval loop, skip-on-overlap, signal handling, graceful shutdown)
-- [ ] 07-02-PLAN.md — Main entry point wiring (config → logging → secrets → orchestrator → scheduler, --run-once flag) + package exports
+- [x] 07-01-PLAN.md — Config extension (shutdown_timeout_seconds) + ExtractionScheduler class (interval loop, skip-on-overlap, signal handling, graceful shutdown)
+- [x] 07-02-PLAN.md — Main entry point wiring (config → logging → secrets → orchestrator → scheduler, --run-once flag) + package exports
 
 ### Phase 8: Testing
 **Goal**: Comprehensive test suite validating all components — API client, rate limiter, file writer, extraction, scheduling.
@@ -154,7 +155,7 @@ Plans:
 - [x] 08-02-PLAN.md — Extractor unit tests (11 tests: UserExtractor, ProjectExtractor, TaskExtractor, discover_workspaces, extract_workspace)
 - [x] 08-03-PLAN.md — Integration tests (end-to-end extraction with mocked Asana API)
 - [x] 08-04-PLAN.md — Type checking and linting (mypy strict, ruff, fix all issues)
-- [ ] 08-05-PLAN.md — Scheduler unit tests (gap closure: run_once, skip-on-overlap, graceful shutdown, shutdown timeout)
+- [x] 08-05-PLAN.md — Scheduler unit tests (gap closure: run_once, skip-on-overlap, graceful shutdown, shutdown timeout)
 
 ### Phase 9: Documentation & Polish
 **Goal**: Write the README documentation required by the exercise and do final cleanup.
@@ -169,9 +170,26 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — Cleanup: config.json.example, remove pydantic-settings, .gitignore, verify exports
-- [ ] 09-02-PLAN.md — Complete README with all sections (setup, architecture, rate limiting, scalability, testing, project structure)
-- [ ] 09-03-PLAN.md — End-to-end validation (static analysis + real Asana account run)
+- [x] 09-01-PLAN.md — Cleanup: config.json.example, remove pydantic-settings, .gitignore, verify exports
+- [x] 09-02-PLAN.md — Complete README with all sections (setup, architecture, rate limiting, scalability, testing, project structure)
+- [ ] 09-03-PLAN.md — End-to-end validation (static analysis + real Asana account run) — paused at human checkpoint
+
+### Phase 10: Gap Closure
+**Goal**: Fix three rate limiting implementation gaps: Retry-After header parsing, per-page rate limiting in paginated_get, and truly global request semaphore.
+**Depends on**: Phase 3, Phase 8
+**Requirements**: RATE-02, RATE-01, RATE-05
+**Success Criteria** (what must be TRUE):
+  1. 429 responses respect the Retry-After header (not always 60s)
+  2. paginated_get() acquires rate limiting tokens per page, not per call
+  3. A single global semaphore caps total in-flight requests across all workspaces
+  4. All existing tests continue to pass
+  5. New tests cover each fix
+**Plans**: 3 plans (all Wave 1 — independent, can run in parallel)
+
+Plans:
+- [ ] 10-01-PLAN.md — Retry-After header parsing: extract from 429 response, propagate to record_429()
+- [x] 10-02-PLAN.md — Per-page rate limiting: restructure paginated_get() to acquire tokens per page
+- [ ] 10-03-PLAN.md — Global semaphore: create once in orchestrator, inject into all clients
 
 ## Progress
 
@@ -185,8 +203,9 @@ Note: Phase 4 (File Writer) depends only on Phase 1 and can run in parallel with
 | 2. API Client | 2/2 | Complete | 2026-03-18 |
 | 3. Rate Limiter | 5/5 | Complete | 2026-03-18 |
 | 4. File Writer | 3/3 | Complete | 2026-03-18 |
-| 5. Entity Extraction | 2/3 | In Progress | - |
-| 6. Workspace Orchestrator | 1/3 | In Progress | - |
-| 7. Scheduler | 0/5 | Not started | - |
-| 8. Testing | 4/5 | In Progress |  |
-| 9. Documentation & Polish | 2/3 | In Progress|  |
+| 5. Entity Extraction | 3/3 | Complete | 2026-03-18 |
+| 6. Workspace Orchestrator | 3/3 | Complete | 2026-03-18 |
+| 7. Scheduler | 2/2 | Complete | 2026-03-18 |
+| 8. Testing | 5/5 | Complete | 2026-03-18 |
+| 9. Documentation & Polish | 2/3 | In Progress (paused at e2e checkpoint) | - |
+| 10. Gap Closure | 1/3 | In Progress | - |

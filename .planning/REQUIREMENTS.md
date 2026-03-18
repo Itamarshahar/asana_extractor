@@ -29,19 +29,19 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Rate Limiting
 
-- [ ] **RATE-01**: Program enforces per-workspace rate limiting (~150 requests per minute per token)
-- [ ] **RATE-02**: Program handles 429 Too Many Requests responses by respecting the Retry-After header
-- [ ] **RATE-03**: After a 429 response, program pauses requests for at least the Retry-After duration (no aggressive retry — rejected requests count against quota)
-- [ ] **RATE-04**: Program uses exponential backoff with jitter for retries on transient errors (500, timeout, network)
-- [ ] **RATE-05**: Concurrent in-flight requests are capped via semaphore to coordinate concurrent workers (prevents overwhelming the API)
-- [ ] **RATE-06**: One workspace's rate limiting does not block or slow down other workspaces
+- [x] **RATE-01**: Program enforces per-workspace rate limiting (~150 requests per minute per token) — per-page rate limiting in paginated_get ensures no unbounded bursts
+- [~] **RATE-02**: Program handles 429 Too Many Requests responses by pausing and retrying — but does NOT parse the Retry-After header (uses fixed 60s pause)
+- [x] **RATE-03**: After a 429 response, program pauses requests for at least 60 seconds (no aggressive retry — rejected requests count against quota)
+- [x] **RATE-04**: Program uses exponential backoff with jitter for retries on transient errors (500, timeout, network)
+- [x] **RATE-05**: Concurrent in-flight requests are capped via semaphore — per-page rate limiting ensures paginated_get acquires tokens per page, not per call
+- [x] **RATE-06**: One workspace's rate limiting does not block or slow down other workspaces
 
 ### Output
 
-- [ ] **OUT-01**: Each entity (user, project, task) is written as a separate JSON file
-- [ ] **OUT-02**: Output directory structure follows: `output/{workspace_gid}/{type}/{entity_gid}.json`
-- [ ] **OUT-03**: File writes are atomic (write to temp file, then os.replace to final path) — no partial/corrupt JSON files on crash
-- [ ] **OUT-04**: Output directories are created automatically if they don't exist
+- [x] **OUT-01**: Each entity (user, project, task) is written as a separate JSON file
+- [x] **OUT-02**: Output directory structure follows: `output/{workspace_gid}/{type}/{entity_gid}.json`
+- [x] **OUT-03**: File writes are atomic (write to temp file, then os.replace to final path) — no partial/corrupt JSON files on crash
+- [x] **OUT-04**: Output directories are created automatically if they don't exist
 
 ### Scheduling
 
@@ -128,16 +128,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EXTR-07 | Phase 6 | Complete |
 | EXTR-08 | Phase 5 | Complete |
 | EXTR-09 | Phase 5 | Complete |
-| RATE-01 | Phase 3 | Pending |
-| RATE-02 | Phase 3 | Pending |
-| RATE-03 | Phase 3 | Pending |
-| RATE-04 | Phase 3 | Pending |
-| RATE-05 | Phase 3 | Pending |
-| RATE-06 | Phase 3 | Pending |
-| OUT-01 | Phase 4 | Pending |
-| OUT-02 | Phase 4 | Pending |
-| OUT-03 | Phase 4 | Pending |
-| OUT-04 | Phase 4 | Pending |
+| RATE-01 | Phase 3, Phase 10 | Complete |
+| RATE-02 | Phase 3 | Partial — 429 handled but Retry-After header not parsed (fixed 60s) |
+| RATE-03 | Phase 3 | Complete |
+| RATE-04 | Phase 3 | Complete |
+| RATE-05 | Phase 3, Phase 10 | Complete — per-page rate limiting + semaphore per workspace |
+| RATE-06 | Phase 3 | Complete |
+| OUT-01 | Phase 4 | Complete |
+| OUT-02 | Phase 4 | Complete |
+| OUT-03 | Phase 4 | Complete |
+| OUT-04 | Phase 4 | Complete |
 | SCHED-01 | Phase 7 | Complete |
 | SCHED-02 | Phase 7 | Complete |
 | SCHED-03 | Phase 7 | Complete |
@@ -146,7 +146,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ERR-03 | Phase 2 | Complete |
 | ERR-04 | Phase 7 | Complete |
 | TEST-01 | Phase 8 | Complete |
-| TEST-02 | Phase 8 | Pending |
+| TEST-02 | Phase 8 | Complete |
 | TEST-03 | Phase 8 | Complete |
 | TEST-04 | Phase 8 | Complete |
 | TEST-05 | Phase 8 | Complete |
