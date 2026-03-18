@@ -8,10 +8,10 @@ All HTTP is mocked via aioresponses at the aiohttp level — no real network cal
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import orjson
-import pytest
 import tenacity
 from aioresponses import aioresponses as _aioresponses
 
@@ -66,7 +66,7 @@ def _register_happy_path_mocks(mock: _aioresponses, ws_gid: str = WS_GID) -> Non
 class TestIntegrationHappyPath:
     """Full extraction chain succeeds for valid workspace with entities."""
 
-    async def test_single_workspace_full_extraction(self, tmp_path: pytest.TempPathFactory) -> None:
+    async def test_single_workspace_full_extraction(self, tmp_path: Path) -> None:
         """Full extraction produces correct JSON files at expected paths.
 
         Asserts:
@@ -118,7 +118,7 @@ class TestIntegrationHappyPath:
         assert content["name"] == "Do thing"
         assert content["completed"] is False
 
-    async def test_empty_workspace_succeeds(self, tmp_path: pytest.TempPathFactory) -> None:
+    async def test_empty_workspace_succeeds(self, tmp_path: Path) -> None:
         """Workspace with no entities completes successfully with no files created.
 
         Asserts:
@@ -168,9 +168,7 @@ class TestIntegrationHappyPath:
 class TestIntegrationErrorIsolation:
     """Failures in one workspace do not abort extraction for other workspaces."""
 
-    async def test_one_workspace_fails_other_succeeds(
-        self, tmp_path: pytest.TempPathFactory
-    ) -> None:
+    async def test_one_workspace_fails_other_succeeds(self, tmp_path: Path) -> None:
         """ws2 /users endpoint 500s (exhausts retries); ws1 extracts correctly.
 
         Asserts:

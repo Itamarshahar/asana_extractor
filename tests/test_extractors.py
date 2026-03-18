@@ -8,13 +8,11 @@ that yields pre-set entity dicts from paginated_get(). Use a fake EntityWriter
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, call
+from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 import structlog.testing
 
 from asana_extractor.extractors import (
-    ExtractionResult,
     ProjectExtractionResult,
     ProjectExtractor,
     TaskExtractor,
@@ -26,15 +24,14 @@ from asana_extractor.extractors import (
 from asana_extractor.rate_limited_client import RateLimitedClient
 from asana_extractor.writer import EntityWriter
 
-
 # ---------------------------------------------------------------------------
 # Helper factories
 # ---------------------------------------------------------------------------
 
 
 def make_fake_client(
-    paginated_responses: list[dict] | None = None,
-    get_response: dict | None = None,
+    paginated_responses: list[dict[str, object]] | None = None,
+    get_response: dict[str, object] | None = None,
 ) -> MagicMock:
     """Create a mock RateLimitedClient that returns pre-set responses."""
     client = MagicMock(spec=RateLimitedClient)
@@ -42,7 +39,7 @@ def make_fake_client(
     if paginated_responses is not None:
         entities = list(paginated_responses)  # capture now
 
-        async def fake_paginated_get(*args: object, **kwargs: object):  # type: ignore[return]
+        async def fake_paginated_get(*args: object, **kwargs: object):
             for entity in entities:
                 yield entity
 
@@ -68,7 +65,10 @@ def make_fake_writer() -> MagicMock:
 class TestUserExtractor:
     async def test_extracts_users_and_writes(self) -> None:
         """Users yielded by paginated_get are written via write_entity."""
-        entities = [{"gid": "u1", "name": "Alice"}, {"gid": "u2", "name": "Bob"}]
+        entities: list[dict[str, object]] = [
+            {"gid": "u1", "name": "Alice"},
+            {"gid": "u2", "name": "Bob"},
+        ]
         client = make_fake_client(paginated_responses=entities)
         writer = make_fake_writer()
 
@@ -83,7 +83,7 @@ class TestUserExtractor:
 
     async def test_missing_gid_skipped_with_warning(self) -> None:
         """Entities without a 'gid' field are skipped; warning recorded."""
-        entities = [{"name": "no-gid-user"}]
+        entities: list[dict[str, object]] = [{"name": "no-gid-user"}]
         client = make_fake_client(paginated_responses=entities)
         writer = make_fake_writer()
 
@@ -105,7 +105,10 @@ class TestUserExtractor:
 class TestProjectExtractor:
     async def test_extracts_projects_and_collects_gids(self) -> None:
         """Projects are written and GIDs collected in ProjectExtractionResult."""
-        entities = [{"gid": "p1", "name": "Alpha"}, {"gid": "p2", "name": "Beta"}]
+        entities: list[dict[str, object]] = [
+            {"gid": "p1", "name": "Alpha"},
+            {"gid": "p2", "name": "Beta"},
+        ]
         client = make_fake_client(paginated_responses=entities)
         writer = make_fake_writer()
 
@@ -140,7 +143,10 @@ class TestProjectExtractor:
 class TestTaskExtractor:
     async def test_extracts_tasks_for_project(self) -> None:
         """Tasks are written with entity_type='tasks' for the given project."""
-        entities = [{"gid": "t1", "name": "Task1"}, {"gid": "t2", "name": "Task2"}]
+        entities: list[dict[str, object]] = [
+            {"gid": "t1", "name": "Task1"},
+            {"gid": "t2", "name": "Task2"},
+        ]
         client = make_fake_client(paginated_responses=entities)
         writer = make_fake_writer()
 
@@ -155,7 +161,7 @@ class TestTaskExtractor:
     async def test_extract_all_aggregates_across_projects(self) -> None:
         """extract_all fires concurrent extractions and sums counts."""
         # 2 projects, each with 1 task — total should be 2
-        entities_by_call: list[list[dict]] = [
+        entities_by_call: list[list[dict[str, object]]] = [
             [{"gid": "t1", "name": "TaskA"}],
             [{"gid": "t2", "name": "TaskB"}],
         ]
@@ -163,7 +169,7 @@ class TestTaskExtractor:
 
         client = MagicMock(spec=RateLimitedClient)
 
-        async def fake_paginated_get(*args: object, **kwargs: object):  # type: ignore[return]
+        async def fake_paginated_get(*args: object, **kwargs: object):
             nonlocal call_index
             entities = entities_by_call[call_index % len(entities_by_call)]
             call_index += 1
@@ -227,7 +233,7 @@ class TestDiscoverWorkspaces:
 class TestExtractWorkspace:
     async def test_full_workspace_extraction(self) -> None:
         """extract_workspace orchestrates users, projects, and tasks in two phases."""
-        responses_by_endpoint = {
+        responses_by_endpoint: dict[str, list[dict[str, object]]] = {
             "/users": [{"gid": "u1", "name": "User1"}],
             "/projects": [{"gid": "p1", "name": "Proj1"}],
             "/tasks": [{"gid": "t1", "name": "Task1"}],
@@ -235,7 +241,7 @@ class TestExtractWorkspace:
 
         client = MagicMock(spec=RateLimitedClient)
 
-        async def fake_paginated_get(endpoint: str, *, params=None, workspace_gid=None):  # type: ignore[return]
+        async def fake_paginated_get(endpoint: str, *, params=None, workspace_gid=None):
             for entity in responses_by_endpoint.get(endpoint, []):
                 yield entity
 
@@ -253,7 +259,7 @@ class TestExtractWorkspace:
 
     async def test_empty_workspace_no_tasks(self) -> None:
         """When there are no projects, tasks extraction is skipped (count=0)."""
-        responses_by_endpoint = {
+        responses_by_endpoint: dict[str, list[dict[str, object]]] = {
             "/users": [],
             "/projects": [],
             "/tasks": [],
@@ -261,7 +267,7 @@ class TestExtractWorkspace:
 
         client = MagicMock(spec=RateLimitedClient)
 
-        async def fake_paginated_get(endpoint: str, *, params=None, workspace_gid=None):  # type: ignore[return]
+        async def fake_paginated_get(endpoint: str, *, params=None, workspace_gid=None):
             for entity in responses_by_endpoint.get(endpoint, []):
                 yield entity
 

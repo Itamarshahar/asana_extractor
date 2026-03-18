@@ -12,7 +12,7 @@ import pytest
 import tenacity
 from aioresponses import aioresponses as _aioresponses
 
-from asana_extractor.client import AsanaClient, BASE_URL
+from asana_extractor.client import BASE_URL, AsanaClient
 from asana_extractor.exceptions import AsanaPermanentError, AsanaTransientError
 from tests.conftest import FakePAT
 

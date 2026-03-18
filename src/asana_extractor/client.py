@@ -58,7 +58,7 @@ def _build_ssl_context() -> ssl.SSLContext:
             )
             if result.returncode == 0 and result.stdout:
                 ctx.load_verify_locations(cadata=result.stdout)
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass  # Fall back to default CAs if keychain access fails
     return ctx
 

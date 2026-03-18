@@ -8,7 +8,7 @@ import pytest
 from asana_extractor.config import load_config
 
 
-def _write_config(tmp_path: Path, data: dict) -> Path:
+def _write_config(tmp_path: Path, data: dict[str, object]) -> Path:
     p = tmp_path / "config.json"
     p.write_text(json.dumps(data))
     return p
