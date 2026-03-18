@@ -168,14 +168,12 @@ Plans:
   3. README explains how the design scales to thousands of workspaces/entities
   4. README explains the rate limit handling strategy in detail
   5. Program runs end-to-end against a real Asana account
-**Plans**: 5 plans
+**Plans**: 3 plans
 
 Plans:
-- [ ] 09-01: README — setup and usage instructions
-- [ ] 09-02: README — system design and architecture section
-- [ ] 09-03: README — scalability considerations section
-- [ ] 09-04: README — rate limit handling strategy section
-- [ ] 09-05: Final validation (end-to-end run, cleanup, code review)
+- [ ] 09-01-PLAN.md — Cleanup: config.json.example, remove pydantic-settings, .gitignore, verify exports
+- [ ] 09-02-PLAN.md — Complete README with all sections (setup, architecture, rate limiting, scalability, testing, project structure)
+- [ ] 09-03-PLAN.md — End-to-end validation (static analysis + real Asana account run)
 
 ## Progress
 
@@ -193,4 +191,4 @@ Note: Phase 4 (File Writer) depends only on Phase 1 and can run in parallel with
 | 6. Workspace Orchestrator | 1/3 | In Progress | - |
 | 7. Scheduler | 0/5 | Not started | - |
 | 8. Testing | 2/4 | In Progress|  |
-| 9. Documentation & Polish | 0/5 | Not started | - |
+| 9. Documentation & Polish | 0/3 | Not started | - |

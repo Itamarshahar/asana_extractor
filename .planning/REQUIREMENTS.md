@@ -61,13 +61,13 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **TEST-01**: Unit tests validate API client behavior (pagination, rate limit handling, error handling)
 - [ ] **TEST-02**: Unit tests validate file writer (atomic writes, directory creation, correct file paths)
 - [ ] **TEST-03**: Unit tests validate scheduler (skip-on-overlap behavior)
-- [ ] **TEST-04**: Integration tests validate end-to-end extraction flow with mocked API responses
+- [x] **TEST-04**: Integration tests validate end-to-end extraction flow with mocked API responses
 - [ ] **TEST-05**: Type checking passes (mypy strict mode)
 - [ ] **TEST-06**: Linting passes (ruff)
 
 ### Documentation
 
-- [ ] **DOC-01**: README explains how to run the program (setup, configuration, execution)
+- [x] **DOC-01**: README explains how to run the program (setup, configuration, execution)
 - [ ] **DOC-02**: README explains the system design and architecture
 - [ ] **DOC-03**: README explains scalability considerations (how the design handles thousands of workspaces/entities)
 - [ ] **DOC-04**: README explains the rate limit handling strategy
@@ -148,10 +148,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-01 | Phase 8 | Complete |
 | TEST-02 | Phase 8 | Pending |
 | TEST-03 | Phase 8 | Pending |
-| TEST-04 | Phase 8 | Pending |
+| TEST-04 | Phase 8 | Complete |
 | TEST-05 | Phase 8 | Pending |
 | TEST-06 | Phase 8 | Pending |
-| DOC-01 | Phase 9 | Pending |
+| DOC-01 | Phase 9 | Complete |
 | DOC-02 | Phase 9 | Pending |
 | DOC-03 | Phase 9 | Pending |
 | DOC-04 | Phase 9 | Pending |
