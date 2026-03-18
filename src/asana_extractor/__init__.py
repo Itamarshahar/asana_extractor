@@ -17,7 +17,15 @@ from asana_extractor.extractors import (
     discover_workspaces,
     extract_workspace,
 )
+from asana_extractor.orchestrator import WorkspaceOrchestrator
 from asana_extractor.rate_limited_client import RateLimitedClient
+from asana_extractor.tenant import (
+    EnvTenantProvider,
+    OrchestratorResult,
+    TenantConfig,
+    TenantProvider,
+    WorkspaceError,
+)
 from asana_extractor.writer import EntityWriter
 
 __version__ = "0.1.0"
@@ -29,13 +37,19 @@ __all__ = [
     "AsanaTransientError",
     "BaseExtractor",
     "EntityWriter",
+    "EnvTenantProvider",
     "ExtractionResult",
+    "OrchestratorResult",
     "ProjectExtractionResult",
     "ProjectExtractor",
     "RateLimitedClient",
     "TaskExtractor",
+    "TenantConfig",
+    "TenantProvider",
     "UserExtractor",
+    "WorkspaceError",
     "WorkspaceExtractionResult",
+    "WorkspaceOrchestrator",
     "__version__",
     "discover_workspaces",
     "extract_workspace",
