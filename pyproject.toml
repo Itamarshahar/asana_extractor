@@ -52,6 +52,9 @@ ignore = [
     # ANN101/ANN102 removed in newer ruff — self/cls type annotations not required
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["ANN"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["asana_extractor"]
 
@@ -73,8 +76,17 @@ show_error_codes = true
 module = [
     "dotenv.*",
     "structlog.*",
+    "aioresponses.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+warn_return_any = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
