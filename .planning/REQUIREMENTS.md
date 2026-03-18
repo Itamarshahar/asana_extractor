@@ -58,7 +58,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Testing
 
-- [ ] **TEST-01**: Unit tests validate API client behavior (pagination, rate limit handling, error handling)
+- [x] **TEST-01**: Unit tests validate API client behavior (pagination, rate limit handling, error handling)
 - [ ] **TEST-02**: Unit tests validate file writer (atomic writes, directory creation, correct file paths)
 - [ ] **TEST-03**: Unit tests validate scheduler (skip-on-overlap behavior)
 - [ ] **TEST-04**: Integration tests validate end-to-end extraction flow with mocked API responses
@@ -145,7 +145,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ERR-02 | Phase 2 | Complete |
 | ERR-03 | Phase 2 | Complete |
 | ERR-04 | Phase 7 | Complete |
-| TEST-01 | Phase 8 | Pending |
+| TEST-01 | Phase 8 | Complete |
 | TEST-02 | Phase 8 | Pending |
 | TEST-03 | Phase 8 | Pending |
 | TEST-04 | Phase 8 | Pending |
