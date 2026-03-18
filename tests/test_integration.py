@@ -33,7 +33,12 @@ def _url(path: str) -> str:
 WS_GID = "111"
 USER_DATA = {"gid": "u1", "name": "Alice", "email": "alice@example.com"}
 PROJECT_DATA = {"gid": "p1", "name": "My Project"}
-TASK_DATA = {"gid": "t1", "name": "Do thing", "completed": False}
+TASK_DATA = {
+    "gid": "t1",
+    "name": "Do thing",
+    "completed": False,
+    "projects": [{"gid": "p1", "name": "My Project"}],
+}
 
 
 def _register_happy_path_mocks(mock: _aioresponses, ws_gid: str = WS_GID) -> None:
@@ -53,7 +58,7 @@ def _register_happy_path_mocks(mock: _aioresponses, ws_gid: str = WS_GID) -> Non
         payload={"data": [PROJECT_DATA], "next_page": None},
     )
     mock.get(
-        _url("/tasks?project=p1&limit=100"),
+        _url("/tasks?limit=100&opt_fields=name%2Cprojects.gid%2Cprojects.name&project=p1"),
         payload={"data": [TASK_DATA], "next_page": None},
     )
 
@@ -110,13 +115,14 @@ class TestIntegrationHappyPath:
         assert content["gid"] == "p1"
         assert content["name"] == "My Project"
 
-        # Task file
+        # Task file — uses Task model field names
         task_file = output / WS_GID / "tasks" / "t1.json"
         assert task_file.exists(), f"Task file not found: {task_file}"
         content = orjson.loads(task_file.read_bytes())
         assert content["gid"] == "t1"
-        assert content["name"] == "Do thing"
-        assert content["completed"] is False
+        assert content["task_name"] == "Do thing"
+        assert content["project_gid"] == "p1"
+        assert content["project_name"] == "My Project"
 
     async def test_empty_workspace_succeeds(self, tmp_path: Path) -> None:
         """Workspace with no entities completes successfully with no files created.

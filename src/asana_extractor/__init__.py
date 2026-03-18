@@ -17,6 +17,7 @@ from asana_extractor.extractors import (
     discover_workspaces,
     extract_workspace,
 )
+from asana_extractor.models import Task
 from asana_extractor.orchestrator import WorkspaceOrchestrator
 from asana_extractor.rate_limited_client import RateLimitedClient
 from asana_extractor.scheduler import ExtractionScheduler
@@ -45,6 +46,7 @@ __all__ = [
     "ProjectExtractionResult",
     "ProjectExtractor",
     "RateLimitedClient",
+    "Task",
     "TaskExtractor",
     "TenantConfig",
     "TenantProvider",

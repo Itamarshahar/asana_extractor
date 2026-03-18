@@ -144,8 +144,16 @@ class TestTaskExtractor:
     async def test_extracts_tasks_for_project(self) -> None:
         """Tasks are written with entity_type='tasks' for the given project."""
         entities: list[dict[str, object]] = [
-            {"gid": "t1", "name": "Task1"},
-            {"gid": "t2", "name": "Task2"},
+            {
+                "gid": "t1",
+                "name": "Task1",
+                "projects": [{"gid": "p1", "name": "Proj1"}],
+            },
+            {
+                "gid": "t2",
+                "name": "Task2",
+                "projects": [{"gid": "p1", "name": "Proj1"}],
+            },
         ]
         client = make_fake_client(paginated_responses=entities)
         writer = make_fake_writer()
@@ -155,15 +163,25 @@ class TestTaskExtractor:
 
         assert result.count == 2
         assert result.entity_type == "tasks"
-        writer.write_entity.assert_any_call("ws1", "tasks", "t1", {"gid": "t1", "name": "Task1"})
-        writer.write_entity.assert_any_call("ws1", "tasks", "t2", {"gid": "t2", "name": "Task2"})
+        writer.write_entity.assert_any_call(
+            "ws1",
+            "tasks",
+            "t1",
+            {"gid": "t1", "task_name": "Task1", "project_gid": "p1", "project_name": "Proj1"},
+        )
+        writer.write_entity.assert_any_call(
+            "ws1",
+            "tasks",
+            "t2",
+            {"gid": "t2", "task_name": "Task2", "project_gid": "p1", "project_name": "Proj1"},
+        )
 
     async def test_extract_all_aggregates_across_projects(self) -> None:
         """extract_all fires concurrent extractions and sums counts."""
         # 2 projects, each with 1 task — total should be 2
         entities_by_call: list[list[dict[str, object]]] = [
-            [{"gid": "t1", "name": "TaskA"}],
-            [{"gid": "t2", "name": "TaskB"}],
+            [{"gid": "t1", "name": "TaskA", "projects": [{"gid": "p1", "name": "ProjA"}]}],
+            [{"gid": "t2", "name": "TaskB", "projects": [{"gid": "p2", "name": "ProjB"}]}],
         ]
         call_index = 0
 
@@ -198,6 +216,59 @@ class TestTaskExtractor:
         assert result.count == 0
         assert result.entity_type == "tasks"
         writer.write_entity.assert_not_called()
+
+    def test_build_params_includes_opt_fields_with_projects(self) -> None:
+        """_build_params returns opt_fields requesting name and project membership."""
+        extractor = TaskExtractor()
+        params = extractor._build_params(project_gid="p1")
+
+        assert params["project"] == "p1"
+        assert "opt_fields" in params
+        assert "name" in params["opt_fields"]
+        assert "projects.gid" in params["opt_fields"]
+        assert "projects.name" in params["opt_fields"]
+
+    async def test_task_model_fields_written(self) -> None:
+        """Written dict uses Task model field names (task_name, project_gid, project_name)."""
+        entities: list[dict[str, object]] = [
+            {
+                "gid": "t1",
+                "name": "Do thing",
+                "projects": [
+                    {"gid": "p1", "name": "My Project"},
+                    {"gid": "p2", "name": "Other Project"},
+                ],
+            },
+        ]
+        client = make_fake_client(paginated_responses=entities)
+        writer = make_fake_writer()
+
+        extractor = TaskExtractor()
+        await extractor.extract(client, writer, workspace_gid="ws1", project_gid="p1")
+
+        written_data = writer.write_entity.call_args_list[0][0][3]
+        assert written_data == {
+            "gid": "t1",
+            "task_name": "Do thing",
+            "project_gid": "p1",
+            "project_name": "My Project",
+        }
+
+    async def test_task_model_missing_projects_field(self) -> None:
+        """Task model handles API response without projects list gracefully."""
+        entities: list[dict[str, object]] = [
+            {"gid": "t1", "name": "Orphan task"},
+        ]
+        client = make_fake_client(paginated_responses=entities)
+        writer = make_fake_writer()
+
+        extractor = TaskExtractor()
+        await extractor.extract(client, writer, workspace_gid="ws1", project_gid="p1")
+
+        written_data = writer.write_entity.call_args_list[0][0][3]
+        assert written_data["project_name"] == ""
+        assert written_data["project_gid"] == "p1"
+        assert written_data["task_name"] == "Orphan task"
 
 
 # ---------------------------------------------------------------------------
@@ -236,7 +307,13 @@ class TestExtractWorkspace:
         responses_by_endpoint: dict[str, list[dict[str, object]]] = {
             "/users": [{"gid": "u1", "name": "User1"}],
             "/projects": [{"gid": "p1", "name": "Proj1"}],
-            "/tasks": [{"gid": "t1", "name": "Task1"}],
+            "/tasks": [
+                {
+                    "gid": "t1",
+                    "name": "Task1",
+                    "projects": [{"gid": "p1", "name": "Proj1"}],
+                }
+            ],
         }
 
         client = MagicMock(spec=RateLimitedClient)

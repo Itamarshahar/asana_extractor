@@ -13,12 +13,14 @@ extract() method handles pagination, writing, and metrics automatically.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 from asana_extractor.logging import get_logger
+from asana_extractor.models import Task
 from asana_extractor.rate_limited_client import RateLimitedClient
 from asana_extractor.writer import EntityWriter
 
@@ -294,9 +296,12 @@ class TaskExtractor(BaseExtractor):
     def endpoint(self) -> str:
         return "/tasks"
 
+    #: Fields requested via opt_fields so each task includes its name and project memberships.
+    OPT_FIELDS: ClassVar[str] = "name,projects.gid,projects.name"
+
     def _build_params(self, **kwargs: Any) -> dict[str, str]:  # noqa: ANN401
         project_gid: str = kwargs["project_gid"]
-        return {"project": project_gid}
+        return {"project": project_gid, "opt_fields": self.OPT_FIELDS}
 
     async def extract(
         self,
@@ -306,6 +311,10 @@ class TaskExtractor(BaseExtractor):
         **kwargs: Any,  # noqa: ANN401
     ) -> ExtractionResult:
         """Extract all tasks for a single project.
+
+        Each raw API entity is converted to a :class:`Task` model and then
+        serialised via ``dataclasses.asdict()`` before writing.  This ensures
+        every task JSON file on disk has a consistent, typed schema.
 
         Args:
             client: Rate-limited API client.
@@ -342,7 +351,8 @@ class TaskExtractor(BaseExtractor):
                 log.warning("entity_missing_gid", entity_repr=repr(entity)[:200])
                 continue
 
-            writer.write_entity(workspace_gid, self.entity_type, gid, entity)
+            task = Task.from_api(entity, project_gid=project_gid)
+            writer.write_entity(workspace_gid, self.entity_type, gid, dataclasses.asdict(task))
             count += 1
 
         duration = time.monotonic() - start_time
