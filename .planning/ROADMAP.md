@@ -99,15 +99,12 @@ Plans:
   4. Tasks are extracted per project and written to disk
   5. Entities are written to disk as extracted (not buffered in memory)
   6. Empty workspaces (0 users, 0 projects) complete without error
-**Plans**: 6 plans
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: Workspace discovery (GET /workspaces)
-- [ ] 05-02: User extractor (GET /users?workspace={id}, paginated, write each to disk)
-- [ ] 05-03: Project extractor (GET /projects?workspace={id}, paginated, write each to disk)
-- [ ] 05-04: Task extractor (GET /tasks?project={id}, paginated, write each to disk)
-- [ ] 05-05: Workspace extractor (orchestrates users → projects → tasks for one workspace)
-- [ ] 05-06: Empty workspace and edge case handling
+- [ ] 05-01-PLAN.md — Base extraction types (ExtractionResult, BaseExtractor ABC) + workspace discovery function
+- [ ] 05-02-PLAN.md — Entity extractors: UserExtractor, ProjectExtractor (with GID collection), TaskExtractor (concurrent per-project)
+- [ ] 05-03-PLAN.md — Workspace extraction orchestrator (users||projects → tasks) + package exports + edge cases
 
 ### Phase 6: Workspace Orchestrator
 **Goal**: Run extraction across all workspaces concurrently with isolation — one workspace's failure doesn't affect others.
@@ -120,9 +117,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 06-01: Concurrent workspace launcher (asyncio.gather with return_exceptions or task group)
-- [ ] 06-02: Workspace isolation (try/except per workspace, error logging, continue others)
-- [ ] 06-03: Workspace concurrency limiter (semaphore to cap parallel workspace extractions)
+- [ ] 06-01-PLAN.md — Data contracts: TenantConfig, TenantProvider ABC, OrchestratorResult, WorkspaceError (tenant.py)
+- [ ] 06-02-PLAN.md — WorkspaceOrchestrator: asyncio.gather, per-workspace try/except isolation, semaphore, run() always returns OrchestratorResult
+- [ ] 06-03-PLAN.md — EnvTenantProvider (reads tenants from config.json) + package __init__.py exports
 
 ### Phase 7: Scheduler
 **Goal**: Add periodic execution with skip-on-overlap and graceful shutdown, making the extractor a long-running service.
