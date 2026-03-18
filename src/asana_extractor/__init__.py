@@ -19,6 +19,7 @@ from asana_extractor.extractors import (
 )
 from asana_extractor.orchestrator import WorkspaceOrchestrator
 from asana_extractor.rate_limited_client import RateLimitedClient
+from asana_extractor.scheduler import ExtractionScheduler
 from asana_extractor.tenant import (
     EnvTenantProvider,
     OrchestratorResult,
@@ -39,6 +40,7 @@ __all__ = [
     "EntityWriter",
     "EnvTenantProvider",
     "ExtractionResult",
+    "ExtractionScheduler",
     "OrchestratorResult",
     "ProjectExtractionResult",
     "ProjectExtractor",
