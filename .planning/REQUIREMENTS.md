@@ -60,10 +60,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **TEST-01**: Unit tests validate API client behavior (pagination, rate limit handling, error handling)
 - [ ] **TEST-02**: Unit tests validate file writer (atomic writes, directory creation, correct file paths)
-- [ ] **TEST-03**: Unit tests validate scheduler (skip-on-overlap behavior)
+- [x] **TEST-03**: Unit tests validate scheduler (skip-on-overlap behavior)
 - [x] **TEST-04**: Integration tests validate end-to-end extraction flow with mocked API responses
-- [ ] **TEST-05**: Type checking passes (mypy strict mode)
-- [ ] **TEST-06**: Linting passes (ruff)
+- [x] **TEST-05**: Type checking passes (mypy strict mode)
+- [x] **TEST-06**: Linting passes (ruff)
 
 ### Documentation
 
@@ -147,10 +147,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ERR-04 | Phase 7 | Complete |
 | TEST-01 | Phase 8 | Complete |
 | TEST-02 | Phase 8 | Pending |
-| TEST-03 | Phase 8 | Pending |
+| TEST-03 | Phase 8 | Complete |
 | TEST-04 | Phase 8 | Complete |
-| TEST-05 | Phase 8 | Pending |
-| TEST-06 | Phase 8 | Pending |
+| TEST-05 | Phase 8 | Complete |
+| TEST-06 | Phase 8 | Complete |
 | DOC-01 | Phase 9 | Complete |
 | DOC-02 | Phase 9 | Complete |
 | DOC-03 | Phase 9 | Complete |

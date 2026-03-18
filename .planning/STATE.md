@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-02-PLAN.md
-last_updated: "2026-03-18T11:34:56Z"
+stopped_at: Completed 08-05-PLAN.md (gap closure)
+last_updated: "2026-03-18T12:49:53.877Z"
 last_activity: 2026-03-18 — Completed 09-02 (README.md)
 progress:
   total_phases: 9
   completed_phases: 8
-  total_plans: 30
+  total_plans: 31
   completed_plans: 30
   percent: 97
 ---
@@ -71,6 +71,7 @@ Progress: [██████████] 97%
 | Phase 08-testing P03 | 1min | 1 tasks | 1 files |
 | Phase 08-testing P04 | 3min | 2 tasks | 9 files |
 | Phase 09-documentation-polish P02 | 5 min | 2 tasks | 1 files |
+| Phase 08-testing P05 | 13min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,7 @@ Recent decisions affecting current work:
 - [Phase 08-04]: pyproject.toml overrides already in place — no config changes needed for Task 1
 - [Phase 09-02]: Documented rate as ~120 req/min matching actual code (2 tokens/sec), not plan's ~150
 - [Phase 09-02]: Included tenants in config table — present in config.json.example though loaded separately from Settings model
+- [Phase 08-testing]: Signal handlers patched out — loop.add_signal_handler only works from main thread
 
 ### Pending Todos
 
@@ -128,6 +130,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T11:34:56Z
-Stopped at: Completed 09-02-PLAN.md
+Last session: 2026-03-18T12:49:53.851Z
+Stopped at: Completed 08-05-PLAN.md (gap closure)
 Resume file: None

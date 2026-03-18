@@ -147,16 +147,14 @@ Plans:
   4. Integration tests validate end-to-end extraction with mocked API
   5. `mypy --strict` passes on entire codebase
   6. `ruff check` passes on entire codebase
-**Plans**: 7 plans
+**Plans**: 5 plans
 
 Plans:
-- [ ] 08-01: Test infrastructure (conftest, fixtures, aioresponses setup)
-- [ ] 08-02: API client unit tests (auth, pagination, retry, error classification)
-- [ ] 08-03: Rate limiter unit tests (token bucket, 429 handling, per-workspace isolation)
-- [ ] 08-04: File writer unit tests (atomic writes, directory creation, crash safety)
-- [ ] 08-05: Extraction unit tests (workspace discovery, entity extractors, empty workspace)
-- [ ] 08-06: Integration tests (end-to-end extraction with mocked Asana API)
-- [ ] 08-07: Type checking and linting (mypy strict, ruff, fix all issues)
+- [x] 08-01-PLAN.md — Shared fixtures (conftest.py) + AsanaClient unit tests (9 tests)
+- [x] 08-02-PLAN.md — Extractor unit tests (11 tests: UserExtractor, ProjectExtractor, TaskExtractor, discover_workspaces, extract_workspace)
+- [x] 08-03-PLAN.md — Integration tests (end-to-end extraction with mocked Asana API)
+- [x] 08-04-PLAN.md — Type checking and linting (mypy strict, ruff, fix all issues)
+- [ ] 08-05-PLAN.md — Scheduler unit tests (gap closure: run_once, skip-on-overlap, graceful shutdown, shutdown timeout)
 
 ### Phase 9: Documentation & Polish
 **Goal**: Write the README documentation required by the exercise and do final cleanup.
@@ -190,5 +188,5 @@ Note: Phase 4 (File Writer) depends only on Phase 1 and can run in parallel with
 | 5. Entity Extraction | 2/3 | In Progress | - |
 | 6. Workspace Orchestrator | 1/3 | In Progress | - |
 | 7. Scheduler | 0/5 | Not started | - |
-| 8. Testing | 2/4 | In Progress|  |
+| 8. Testing | 4/5 | In Progress |  |
 | 9. Documentation & Polish | 2/3 | In Progress|  |
