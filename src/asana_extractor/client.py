@@ -302,17 +302,31 @@ class AsanaClient:
                 # Retry-After and workspace isolation. AsanaClient raises
                 # immediately so the caller can apply its own back-off strategy.
                 await response.text()
+
+                # Parse Retry-After header (seconds). Gracefully handle
+                # missing or malformed values — None triggers 60s fallback
+                # in RateLimiter429State.record_429().
+                retry_after: float | None = None
+                raw_retry_after = response.headers.get("Retry-After")
+                if raw_retry_after is not None:
+                    try:
+                        retry_after = float(raw_retry_after)
+                    except (ValueError, OverflowError):
+                        retry_after = None
+
                 self._log.warning(
                     "rate_limited_429",
                     status=429,
                     endpoint=endpoint,
                     workspace_gid=workspace_gid,
+                    retry_after=retry_after,
                 )
                 raise AsanaTransientError(
                     status_code=429,
                     endpoint=endpoint,
                     message="Rate limited (429) — RateLimitedClient handles Retry-After.",
                     workspace_gid=workspace_gid,
+                    retry_after=retry_after,
                 )
 
             if response.status >= 400:

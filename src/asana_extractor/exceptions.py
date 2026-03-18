@@ -44,7 +44,28 @@ class AsanaTransientError(AsanaClientError):
 
     Transient errors include 5xx server errors, timeouts, and connection errors.
     These errors may succeed on a subsequent attempt.
+
+    Attributes:
+        retry_after: Retry-After header value in seconds from a 429 response,
+            or None if the header was absent/malformed or the error is not a 429.
     """
+
+    def __init__(
+        self,
+        *,
+        status_code: int | None,
+        endpoint: str,
+        message: str,
+        workspace_gid: str | None = None,
+        retry_after: float | None = None,
+    ) -> None:
+        self.retry_after = retry_after
+        super().__init__(
+            status_code=status_code,
+            endpoint=endpoint,
+            message=message,
+            workspace_gid=workspace_gid,
+        )
 
     def __str__(self) -> str:
         return f"AsanaTransientError({self.status_code} {self.endpoint}): {self.message}"

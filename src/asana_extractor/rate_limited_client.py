@@ -110,7 +110,7 @@ class RateLimitedClient:
             except AsanaTransientError as exc:
                 if exc.status_code == 429 and not is_retry:
                     # Pause workspace, reset bucket, then retry once
-                    await state.record_429(endpoint=endpoint, retry_after=None)
+                    await state.record_429(endpoint=endpoint, retry_after=exc.retry_after)
                     return await self._execute_get(
                         endpoint,
                         params=params,
