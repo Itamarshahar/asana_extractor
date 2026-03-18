@@ -163,18 +163,29 @@ class TestTaskExtractor:
 
         assert result.count == 2
         assert result.entity_type == "tasks"
-        writer.write_entity.assert_any_call(
-            "ws1",
-            "tasks",
-            "t1",
-            {"gid": "t1", "task_name": "Task1", "project_gid": "p1", "project_name": "Proj1"},
-        )
-        writer.write_entity.assert_any_call(
-            "ws1",
-            "tasks",
-            "t2",
-            {"gid": "t2", "task_name": "Task2", "project_gid": "p1", "project_name": "Proj1"},
-        )
+
+        # Verify both tasks were written — check all calls and match by gid
+        # since last_fetch_time is dynamic.
+        calls = writer.write_entity.call_args_list
+        written = {c.args[2]: c.args[3] for c in calls}  # keyed by gid
+
+        assert "t1" in written
+        t1 = written["t1"]
+        assert t1["gid"] == "t1"
+        assert t1["task_name"] == "Task1"
+        assert t1["project_gid"] == "p1"
+        assert t1["project_name"] == "Proj1"
+        assert t1["name"] == "Task1"
+        assert "last_fetch_time" in t1
+
+        assert "t2" in written
+        t2 = written["t2"]
+        assert t2["gid"] == "t2"
+        assert t2["task_name"] == "Task2"
+        assert t2["project_gid"] == "p1"
+        assert t2["project_name"] == "Proj1"
+        assert t2["name"] == "Task2"
+        assert "last_fetch_time" in t2
 
     async def test_extract_all_aggregates_across_projects(self) -> None:
         """extract_all fires concurrent extractions and sums counts."""
@@ -247,12 +258,12 @@ class TestTaskExtractor:
         await extractor.extract(client, writer, workspace_gid="ws1", project_gid="p1")
 
         written_data = writer.write_entity.call_args_list[0][0][3]
-        assert written_data == {
-            "gid": "t1",
-            "task_name": "Do thing",
-            "project_gid": "p1",
-            "project_name": "My Project",
-        }
+        assert written_data["gid"] == "t1"
+        assert written_data["task_name"] == "Do thing"
+        assert written_data["project_gid"] == "p1"
+        assert written_data["project_name"] == "My Project"
+        assert written_data["name"] == "Do thing"
+        assert "last_fetch_time" in written_data
 
     async def test_task_model_missing_projects_field(self) -> None:
         """Task model handles API response without projects list gracefully."""
