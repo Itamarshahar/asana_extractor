@@ -16,7 +16,7 @@ Build a production-grade Asana data extractor in 9 phases: starting with project
 - [x] **Phase 8: Testing** - Unit tests, integration tests, mypy, ruff
 - [x] **Phase 9: Documentation & Polish** - README, final cleanup, end-to-end validation (completed 2026-03-20)
 - [x] **Phase 10: Gap Closure** - Fix Retry-After parsing, per-page rate limiting, global semaphore (completed 2011-03-18)
-- [ ] **Phase 11: README Rate Limit Update** - Correct README to reflect Phase 10 rate limiting fixes
+- [x] **Phase 11: README Rate Limit Update** - Correct README to reflect Phase 10 rate limiting fixes (completed 2026-03-20)
 - [ ] **Phase 11: Incremental Extraction** - `modified_since` for tasks, state file tracking, full-refresh for users/projects
 
 ## Phase Details
@@ -203,10 +203,10 @@ Plans:
   2. README accurately describes the current implementation: Retry-After header parsing, per-page token acquisition, and shared global semaphore
   3. Phase 09 UAT checks 1–8 (static, no real Asana account) are run and all pass
   4. `09-VERIFICATION.md` is written reflecting UAT results
-**Plans**: 2 plans
+**Plans**: 1 plan (Plan 02 already completed)
 
 Plans:
-- [ ] 11-01-PLAN.md — Update README `Rate Limit Handling` section: remove stale limitations, document Phase 10 behavior accurately
+- [ ] 11-01-PLAN.md — Update README: fix semaphore labels, remove stale limitations, add incremental extraction docs, update project structure
 - [x] 11-02-PLAN.md — Run Phase 09 UAT checks 1–8 (static verification); write `09-VERIFICATION.md` (completed 2026-03-20)
 
 ### Phase 11: Incremental Extraction
@@ -250,5 +250,5 @@ Note: Phase 4 (File Writer) depends only on Phase 1 and can run in parallel with
 | 8. Testing | 5/5 | Complete | 2011-03-18 |
 | 9. Documentation & Polish | 3/3 | Complete | 2026-03-20 |
 | 10. Gap Closure | 3/3 | Complete    | 2011-03-18 |
-| 11. README Rate Limit Update | 0/2 | Pending | - |
+| 11. README Rate Limit Update | 1/1 | Complete   | 2026-03-20 |
 | 11. Incremental Extraction | 0/3 | Pending | - |

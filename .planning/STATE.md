@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 09-03-PLAN.md (End-to-end validation)
-last_updated: "2026-03-20T10:08:33.511Z"
-last_activity: 2026-03-20 — Completed 12-03-PLAN.md (Integration tests for incremental extraction)
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-03-20T10:41:06.098Z"
+last_activity: 2026-03-20 — Completed 11-01-PLAN.md (README rate limit and incremental extraction update)
 progress:
   total_phases: 11
-  completed_phases: 10
-  total_plans: 34
-  completed_plans: 34
+  completed_phases: 11
+  total_plans: 35
+  completed_plans: 35
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Reliably extract Asana data at scale without exceeding API rate limits or losing data to partial failures.
-**Current focus:** Phase 13 — Incremental Extraction (context gathered, ready for planning)
+**Current focus:** Phase 11 — README Rate Limit Update (complete)
 
 ## Current Position
 
-Phase: 12 of 13 (Incremental Extraction)
-Plan: 3 of 3 in current phase (COMPLETE)
-Status: Phase 12 complete
-Last activity: 2026-03-20 — Completed 12-03-PLAN.md (Integration tests for incremental extraction)
+Phase: 11 of 11 (README Rate Limit Update)
+Plan: 1 of 1 in current phase (COMPLETE)
+Status: Phase 11 complete
+Last activity: 2026-03-20 — Completed 11-01-PLAN.md (README rate limit and incremental extraction update)
 
 Progress: [██████████] 100%
 
@@ -80,6 +80,7 @@ Progress: [██████████] 100%
 | Phase 12-incremental-extraction P03 | 5 min | 2 tasks | 4 files |
 | Phase 12-incremental-extraction P03 | 5min | 2 tasks | 4 files |
 | Phase 09-documentation-polish P03 | 3 min | 2 tasks | 0 files |
+| Phase 11-readme-rate-limit-update P01 | 3 min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -136,6 +137,7 @@ Recent decisions affecting current work:
 - [Phase 12-incremental-extraction]: cycle_start_iso defaults to datetime.now(UTC) in orchestrator when not provided — supports run_once and testing
 - [Phase 12-incremental-extraction]: save_state in success path only (before return None, never in except) — all-or-nothing per workspace
 - [Phase 12-incremental-extraction]: tmp_path fixture for state tests — isolated temp dirs per test; **kwargs in scheduler mocks for forward compatibility; unittest.mock.ANY for non-deterministic timestamps
+- [Phase 11-readme-rate-limit-update]: Fixed WorkspaceOrchestrator description — request semaphore is shared global, not independent per workspace
 
 ### Pending Todos
 
@@ -148,7 +150,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-20T10:08:33.498Z
-Stopped at: Completed 09-03-PLAN.md (End-to-end validation)
+Last session: 2026-03-20T10:41:00.990Z
+Stopped at: Completed 11-01-PLAN.md
 Resume file: None
 Next step: Phase 12 complete — all 3 plans executed. Ready for phase 13 or next milestone.
