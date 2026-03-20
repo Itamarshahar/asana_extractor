@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import signal
 import time
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from asana_extractor.logging import get_logger
@@ -78,11 +79,12 @@ class ExtractionScheduler:
         succeeded count, failed count, and duration_seconds.
         """
         self._running = True
-        self._log.info("cycle_started")
+        cycle_start_iso = datetime.now(UTC).isoformat()
+        self._log.info("cycle_started", cycle_start_iso=cycle_start_iso)
         start = time.monotonic()
 
         tenants = self._tenant_provider.list_tenants()
-        result = await self._orchestrator.run(tenants)
+        result = await self._orchestrator.run(tenants, cycle_start_iso=cycle_start_iso)
 
         duration = time.monotonic() - start
         self._log.info(
