@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import traceback
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from asana_extractor.config import Settings
@@ -30,6 +31,7 @@ from asana_extractor.logging import get_logger
 from asana_extractor.rate_limited_client import RateLimitedClient
 from asana_extractor.rate_limiter import GlobalRequestSemaphore
 from asana_extractor.secrets import SecretsProvider
+from asana_extractor.state import ExtractionState, load_state, save_state
 from asana_extractor.tenant import OrchestratorResult, TenantConfig, WorkspaceError
 from asana_extractor.writer import EntityWriter
 
@@ -87,7 +89,9 @@ class WorkspaceOrchestrator:
         self._global_request_semaphore = GlobalRequestSemaphore()
         self._log = get_logger(__name__)
 
-    async def run(self, tenants: list[TenantConfig]) -> OrchestratorResult:
+    async def run(
+        self, tenants: list[TenantConfig], *, cycle_start_iso: str | None = None
+    ) -> OrchestratorResult:
         """Run extraction for all tenants concurrently.
 
         Launches one asyncio task per tenant. Tasks are concurrency-limited
@@ -100,6 +104,9 @@ class WorkspaceOrchestrator:
         Args:
             tenants: List of tenant configurations to extract. Empty list
                      returns an empty OrchestratorResult immediately.
+            cycle_start_iso: Optional ISO 8601 UTC timestamp captured at
+                cycle start. Used to set state file timestamps after
+                successful extraction. If None, falls back to datetime.now(UTC).
 
         Returns:
             OrchestratorResult with succeeded GIDs and WorkspaceError objects
@@ -116,7 +123,10 @@ class WorkspaceOrchestrator:
         # Launch all workspace tasks concurrently; gather collects all results
         # including exceptions (return_exceptions=True is a safety net — primary
         # isolation is the try/except inside _run_workspace).
-        tasks = [self._run_workspace(tenant, writer) for tenant in tenants]
+        tasks = [
+            self._run_workspace(tenant, writer, cycle_start_iso=cycle_start_iso)
+            for tenant in tenants
+        ]
         raw_results: list[WorkspaceError | None | BaseException] = list(
             await asyncio.gather(*tasks, return_exceptions=True)
         )
@@ -172,16 +182,20 @@ class WorkspaceOrchestrator:
         self,
         tenant: TenantConfig,
         writer: EntityWriter,
+        *,
+        cycle_start_iso: str | None = None,
     ) -> WorkspaceError | None:
         """Run extraction for a single workspace with full isolation.
 
-        Acquires the workspace semaphore before starting. Catches all
-        exceptions and returns a WorkspaceError instead of propagating —
-        one workspace's failure must not abort others.
+        Acquires the workspace semaphore before starting. Loads extraction
+        state for incremental extraction (modified_since). On success, saves
+        updated state with the cycle timestamp. On failure, state is left
+        unchanged (all-or-nothing per workspace).
 
         Args:
             tenant: Tenant configuration with workspace_gid and PAT.
             writer: Shared atomic file writer (thread-safe for concurrent use).
+            cycle_start_iso: Optional ISO 8601 UTC timestamp for state update.
 
         Returns:
             None on success, WorkspaceError on any failure.
@@ -197,6 +211,19 @@ class WorkspaceOrchestrator:
         async with self._semaphore:
             log.debug("workspace_task_started")
             try:
+                # Load extraction state for incremental extraction
+                existing_state = load_state(self._settings.output_dir, tenant.workspace_gid)
+                modified_since: str | None = None
+                if existing_state is not None:
+                    modified_since = existing_state.entity_timestamps.get("tasks")
+                    log.info(
+                        "incremental_extraction",
+                        tasks_modified_since=modified_since,
+                        cycle_count=existing_state.cycle_count,
+                    )
+                else:
+                    log.info("full_extraction", reason="no_state_file")
+
                 secrets_provider = _PatSecretsProvider(tenant.pat)
                 async with RateLimitedClient(
                     secrets_provider,
@@ -206,7 +233,25 @@ class WorkspaceOrchestrator:
                         client=client,
                         writer=writer,
                         workspace_gid=tenant.workspace_gid,
+                        modified_since=modified_since,
                     )
+
+                # Save extraction state — only on success (all-or-nothing per workspace)
+                cycle_ts = cycle_start_iso or datetime.now(UTC).isoformat()
+                new_cycle_count = (existing_state.cycle_count + 1) if existing_state else 1
+                new_state = ExtractionState(
+                    workspace_gid=tenant.workspace_gid,
+                    last_cycle_start=cycle_ts,
+                    entity_timestamps={
+                        "tasks": cycle_ts,
+                        "projects": cycle_ts,
+                        "users": cycle_ts,
+                    },
+                    cycle_count=new_cycle_count,
+                )
+                save_state(self._settings.output_dir, new_state)
+                log.info("state_updated", cycle_count=new_cycle_count)
+
                 log.info("workspace_task_succeeded")
                 return None
             except Exception as exc:
