@@ -87,7 +87,7 @@ class TestUserExtractor:
         u1 = written["u1"]
         assert u1["gid"] == "u1"
         assert u1["name"] == "Alice"
-        assert u1["email"] == "alice@example.com"
+        assert "email" not in u1
         assert "last_fetch_time" in u1
 
         assert "u2" in written
@@ -151,6 +151,7 @@ class TestProjectExtractor:
         p2 = written["p2"]
         assert p2["gid"] == "p2"
         assert p2["name"] == "Beta"
+        assert p2["workspace_gid"] == "ws1"
         assert "last_fetch_time" in p2
 
     async def test_empty_workspace_returns_empty(self) -> None:
@@ -204,19 +205,17 @@ class TestTaskExtractor:
         assert "t1" in written
         t1 = written["t1"]
         assert t1["gid"] == "t1"
-        assert t1["task_name"] == "Task1"
+        assert t1["name"] == "Task1"
         assert t1["project_gid"] == "p1"
         assert t1["project_name"] == "Proj1"
-        assert t1["name"] == "Task1"
         assert "last_fetch_time" in t1
 
         assert "t2" in written
         t2 = written["t2"]
         assert t2["gid"] == "t2"
-        assert t2["task_name"] == "Task2"
+        assert t2["name"] == "Task2"
         assert t2["project_gid"] == "p1"
         assert t2["project_name"] == "Proj1"
-        assert t2["name"] == "Task2"
         assert "last_fetch_time" in t2
 
     async def test_extract_all_aggregates_across_projects(self) -> None:
@@ -272,7 +271,7 @@ class TestTaskExtractor:
         assert "projects.name" in params["opt_fields"]
 
     async def test_task_model_fields_written(self) -> None:
-        """Written dict uses Task model field names (task_name, project_gid, project_name)."""
+        """Written dict uses Task model field names (project_gid, project_name)."""
         entities: list[dict[str, object]] = [
             {
                 "gid": "t1",
@@ -291,10 +290,9 @@ class TestTaskExtractor:
 
         written_data = writer.write_entity.call_args_list[0][0][3]
         assert written_data["gid"] == "t1"
-        assert written_data["task_name"] == "Do thing"
+        assert written_data["name"] == "Do thing"
         assert written_data["project_gid"] == "p1"
         assert written_data["project_name"] == "My Project"
-        assert written_data["name"] == "Do thing"
         assert "last_fetch_time" in written_data
 
     async def test_task_model_missing_projects_field(self) -> None:
@@ -311,7 +309,7 @@ class TestTaskExtractor:
         written_data = writer.write_entity.call_args_list[0][0][3]
         assert written_data["project_name"] == ""
         assert written_data["project_gid"] == "p1"
-        assert written_data["task_name"] == "Orphan task"
+        assert written_data["name"] == "Orphan task"
 
 
 # ---------------------------------------------------------------------------

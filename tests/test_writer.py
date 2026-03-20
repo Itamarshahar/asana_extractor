@@ -35,7 +35,7 @@ class TestEntityWriterPaths:
 class TestEntityWriterContent:
     def test_file_content_is_valid_json(self, tmp_path: Path) -> None:
         writer = EntityWriter(output_dir=str(tmp_path))
-        data = {"gid": "u1", "name": "Alice", "email": "alice@example.com"}
+        data = {"gid": "u1", "name": "Alice"}
         writer.write_entity("ws1", "users", "u1", data)
         content = (tmp_path / "ws1" / "users" / "u1.json").read_text()
         parsed = json.loads(content)

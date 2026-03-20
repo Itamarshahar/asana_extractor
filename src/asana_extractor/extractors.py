@@ -313,7 +313,7 @@ class ProjectExtractor(BaseExtractor):
                 log.warning("entity_missing_gid", entity_repr=repr(entity)[:200])
                 continue
 
-            project = Project.from_api(entity)
+            project = Project.from_api(entity, workspace_gid=workspace_gid)
             writer.write_entity(workspace_gid, self.entity_type, gid, dataclasses.asdict(project))
             project_gids.append(gid)
             count += 1

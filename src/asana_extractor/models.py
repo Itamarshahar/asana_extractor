@@ -17,8 +17,7 @@ Supported models:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,7 +34,7 @@ class BaseAsanaObject:
 
     gid: str
     last_fetch_time: datetime
-    name: Optional[str] = None
+    name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +46,6 @@ class Task(BaseAsanaObject):
     EntityWriter.write_entity() — the writer interface stays unchanged.
 
     Attributes:
-        task_name: Display name of the task (from the API ``name`` field).
         project_gid: GID of the project this task was extracted from.
             Sourced from the ``project_gid`` kwarg passed to extract().
         project_name: Display name of the project, extracted from the
@@ -55,7 +53,6 @@ class Task(BaseAsanaObject):
             available.
     """
 
-    task_name: str = ""
     project_gid: str = ""
     project_name: str = ""
 
@@ -63,9 +60,8 @@ class Task(BaseAsanaObject):
     def from_api(raw: dict[str, object], *, project_gid: str) -> Task:
         """Construct a Task from a raw Asana API dict.
 
-        Extracts ``name`` as ``task_name`` and resolves ``project_name``
-        from the ``projects`` list in the response.  Falls back to empty
-        string for missing fields.
+        Resolves ``project_name`` from the ``projects`` list in the
+        response.  Falls back to empty string for missing fields.
 
         Args:
             raw: Raw entity dict from the Asana API (via paginated_get).
@@ -76,7 +72,6 @@ class Task(BaseAsanaObject):
             A fully populated Task instance.
         """
         gid = str(raw.get("gid", ""))
-        task_name = str(raw.get("name", ""))
         name = str(raw.get("name", "")) or None
 
         # Resolve project_name from the embedded projects list
@@ -90,9 +85,8 @@ class Task(BaseAsanaObject):
 
         return Task(
             gid=gid,
-            last_fetch_time=datetime.now(timezone.utc),
+            last_fetch_time=datetime.now(UTC),
             name=name,
-            task_name=task_name,
             project_gid=project_gid,
             project_name=project_name,
         )
@@ -100,13 +94,7 @@ class Task(BaseAsanaObject):
 
 @dataclass(frozen=True, slots=True)
 class User(BaseAsanaObject):
-    """An Asana user.
-
-    Attributes:
-        email: The user's email address.  ``None`` when not available.
-    """
-
-    email: Optional[str] = None
+    """An Asana user."""
 
     @staticmethod
     def from_api(raw: dict[str, object]) -> User:
@@ -120,9 +108,8 @@ class User(BaseAsanaObject):
         """
         return User(
             gid=str(raw.get("gid", "")),
-            last_fetch_time=datetime.now(timezone.utc),
+            last_fetch_time=datetime.now(UTC),
             name=str(raw.get("name", "")) or None,
-            email=str(raw.get("email", "")) or None,
         )
 
 
@@ -135,26 +122,30 @@ class Project(BaseAsanaObject):
             ``None`` when not available.
     """
 
-    workspace_gid: Optional[str] = None
+    workspace_gid: str | None = None
 
     @staticmethod
-    def from_api(raw: dict[str, object]) -> Project:
+    def from_api(raw: dict[str, object], *, workspace_gid: str | None = None) -> Project:
         """Construct a Project from a raw Asana API dict.
 
         Args:
             raw: Raw entity dict from the Asana API.
+            workspace_gid: Workspace GID known from the extraction context.
+                Used as the primary source; falls back to the ``workspace``
+                nested object in the API response if not provided.
 
         Returns:
             A fully populated Project instance.
         """
-        workspace_gid: Optional[str] = None
-        workspace = raw.get("workspace")
-        if isinstance(workspace, dict):
-            workspace_gid = str(workspace.get("gid", "")) or None
+        resolved_workspace_gid: str | None = workspace_gid
+        if resolved_workspace_gid is None:
+            workspace = raw.get("workspace")
+            if isinstance(workspace, dict):
+                resolved_workspace_gid = str(workspace.get("gid", "")) or None
 
         return Project(
             gid=str(raw.get("gid", "")),
-            last_fetch_time=datetime.now(timezone.utc),
+            last_fetch_time=datetime.now(UTC),
             name=str(raw.get("name", "")) or None,
-            workspace_gid=workspace_gid,
+            workspace_gid=resolved_workspace_gid,
         )

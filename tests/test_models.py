@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from asana_extractor.models import BaseAsanaObject, Project, Task, User
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -17,7 +16,7 @@ from asana_extractor.models import BaseAsanaObject, Project, Task, User
 
 def _utcnow_approx() -> datetime:
     """Return current UTC time for delta assertions."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _assert_recent(dt: datetime, *, tolerance_seconds: float = 2.0) -> None:
@@ -73,7 +72,6 @@ class TestTaskFromApi:
 
         assert task.gid == "task-1"
         assert task.name == "My Task"
-        assert task.task_name == "My Task"
         assert task.project_gid == "proj-1"
         assert task.project_name == "Alpha"
         _assert_recent(task.last_fetch_time)
@@ -117,17 +115,14 @@ class TestTaskFromApi:
         task = Task.from_api({}, project_gid="p")
         assert task.gid == ""
         assert task.name is None
-        assert task.task_name == ""
         assert task.project_gid == "p"
         assert task.project_name == ""
 
     def test_empty_name_becomes_none(self) -> None:
         raw = {"gid": "t1", "name": ""}
         task = Task.from_api(raw, project_gid="p")
-        # name uses `or None` so empty string → None
+        # name uses `or None` so empty string -> None
         assert task.name is None
-        # task_name does NOT use `or None` so it stays ""
-        assert task.task_name == ""
 
     def test_sets_last_fetch_time(self) -> None:
         before = _utcnow_approx()
@@ -145,25 +140,22 @@ class TestUserFromApi:
     """Tests for User.from_api() factory method."""
 
     def test_happy_path(self) -> None:
-        raw = {"gid": "u1", "name": "Alice", "email": "alice@example.com"}
+        raw = {"gid": "u1", "name": "Alice"}
         user = User.from_api(raw)
 
         assert user.gid == "u1"
         assert user.name == "Alice"
-        assert user.email == "alice@example.com"
         _assert_recent(user.last_fetch_time)
 
     def test_missing_fields(self) -> None:
         user = User.from_api({})
         assert user.gid == ""
         assert user.name is None
-        assert user.email is None
 
     def test_empty_strings_become_none(self) -> None:
-        raw = {"gid": "u1", "name": "", "email": ""}
+        raw = {"gid": "u1", "name": ""}
         user = User.from_api(raw)
         assert user.name is None
-        assert user.email is None
 
 
 # ===========================================================================
@@ -187,10 +179,28 @@ class TestProjectFromApi:
         assert project.workspace_gid == "ws-1"
         _assert_recent(project.last_fetch_time)
 
-    def test_no_workspace_key(self) -> None:
+    def test_workspace_gid_from_parameter(self) -> None:
+        """When workspace_gid is passed explicitly, it takes precedence."""
+        raw = {"gid": "proj-1", "name": "P", "workspace": {"gid": "ws-api"}}
+        project = Project.from_api(raw, workspace_gid="ws-explicit")
+        assert project.workspace_gid == "ws-explicit"
+
+    def test_workspace_gid_fallback_to_api(self) -> None:
+        """When workspace_gid is not passed, falls back to API workspace object."""
+        raw = {"gid": "proj-1", "name": "P", "workspace": {"gid": "ws-api"}}
+        project = Project.from_api(raw)
+        assert project.workspace_gid == "ws-api"
+
+    def test_no_workspace_key_no_param(self) -> None:
         raw = {"gid": "proj-1", "name": "P"}
         project = Project.from_api(raw)
         assert project.workspace_gid is None
+
+    def test_no_workspace_key_with_param(self) -> None:
+        """workspace_gid param fills in when API response lacks workspace."""
+        raw = {"gid": "proj-1", "name": "P"}
+        project = Project.from_api(raw, workspace_gid="ws-1")
+        assert project.workspace_gid == "ws-1"
 
     def test_workspace_not_a_dict(self) -> None:
         raw: dict[str, object] = {"gid": "proj-1", "workspace": "not-a-dict"}
@@ -200,5 +210,5 @@ class TestProjectFromApi:
     def test_empty_workspace_gid(self) -> None:
         raw = {"gid": "proj-1", "workspace": {"gid": ""}}
         project = Project.from_api(raw)
-        # empty string → `or None` → None
+        # empty string -> `or None` -> None
         assert project.workspace_gid is None

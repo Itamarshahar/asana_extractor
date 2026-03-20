@@ -31,7 +31,7 @@ def _url(path: str) -> str:
 # ---------------------------------------------------------------------------
 
 WS_GID = "111"
-USER_DATA = {"gid": "u1", "name": "Alice", "email": "alice@example.com"}
+USER_DATA = {"gid": "u1", "name": "Alice"}
 PROJECT_DATA = {"gid": "p1", "name": "My Project"}
 TASK_DATA = {
     "gid": "t1",
@@ -106,7 +106,7 @@ class TestIntegrationHappyPath:
         content = orjson.loads(user_file.read_bytes())
         assert content["gid"] == "u1"
         assert content["name"] == "Alice"
-        assert content["email"] == "alice@example.com"
+        assert "email" not in content
 
         # Project file
         project_file = output / WS_GID / "projects" / "p1.json"
@@ -120,7 +120,7 @@ class TestIntegrationHappyPath:
         assert task_file.exists(), f"Task file not found: {task_file}"
         content = orjson.loads(task_file.read_bytes())
         assert content["gid"] == "t1"
-        assert content["task_name"] == "Do thing"
+        assert content["name"] == "Do thing"
         assert content["project_gid"] == "p1"
         assert content["project_name"] == "My Project"
 
