@@ -170,11 +170,6 @@ A shared `GlobalRequestSemaphore(50)` created by the orchestrator and injected i
 
 **Future scaling considerations:** At 10,000+ workspaces, the single-process asyncio model would benefit from distributed workers (process pool or separate nodes), a persistent job queue for extraction tasks, and database output instead of filesystem writes.
 
-## Known Limitations
-
-- **Single-process architecture** — All workspaces are processed within a single Python process. At 10,000+ workspaces, distributing work across multiple processes or nodes with a job queue would improve throughput.
-- **Filesystem output only** — Entities are written as individual JSON files. At scale, a database or object store would provide better query capabilities, deduplication, and durability.
-
 ## Testing
 
 ```bash
