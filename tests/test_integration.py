@@ -159,11 +159,13 @@ class TestIntegrationHappyPath:
         assert result.failed == []
         assert not result.has_failures
 
-        # No files should have been created
+        # No entity files should have been created (state files are expected)
         output = tmp_path / "output"
         if output.exists():
-            all_json_files = list(output.rglob("*.json"))
-            assert all_json_files == [], f"Unexpected files created: {all_json_files}"
+            entity_json_files = [
+                f for f in output.rglob("*.json") if f.name != ".extraction_state.json"
+            ]
+            assert entity_json_files == [], f"Unexpected entity files created: {entity_json_files}"
 
 
 # ---------------------------------------------------------------------------

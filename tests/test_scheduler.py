@@ -9,7 +9,7 @@ only works from the main thread (pytest may run tests in worker threads).
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import structlog.testing
 
@@ -51,7 +51,10 @@ def _make_orchestrator_mock(
     mock = MagicMock(spec=WorkspaceOrchestrator)
     result = OrchestratorResult(succeeded=["ws-1"], failed=[])
 
-    async def fake_run(tenants: list[TenantConfig]) -> OrchestratorResult:
+    async def fake_run(
+        tenants: list[TenantConfig],
+        **kwargs: object,
+    ) -> OrchestratorResult:
         if run_duration > 0:
             await asyncio.sleep(run_duration)
         return result
@@ -75,7 +78,7 @@ class TestSchedulerRunOnce:
         scheduler = ExtractionScheduler(settings, orchestrator, provider)
         await scheduler.run_once()
 
-        orchestrator.run.assert_awaited_once_with(provider.list_tenants())
+        orchestrator.run.assert_awaited_once_with(provider.list_tenants(), cycle_start_iso=ANY)
         assert scheduler._running is False
 
     async def test_run_once_logs_cycle_events(self) -> None:
@@ -105,7 +108,9 @@ class TestSchedulerRunOnce:
 
         running_during_cycle = False
 
-        async def capture_running(tenants: list[TenantConfig]) -> OrchestratorResult:
+        async def capture_running(
+            tenants: list[TenantConfig], **kwargs: object
+        ) -> OrchestratorResult:
             nonlocal running_during_cycle
             running_during_cycle = scheduler._running
             return OrchestratorResult(succeeded=["ws-1"], failed=[])

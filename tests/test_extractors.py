@@ -397,3 +397,83 @@ class TestExtractWorkspace:
         assert result.task_result.count == 0
         assert result.total_entities == 0
         writer.write_entity.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# TestIncrementalExtraction — modified_since parameter flow
+# ---------------------------------------------------------------------------
+
+
+class TestIncrementalExtraction:
+    def test_task_extractor_build_params_with_modified_since(self) -> None:
+        """_build_params includes modified_since when provided."""
+        extractor = TaskExtractor()
+        params = extractor._build_params(
+            project_gid="proj1", modified_since="2026-03-20T10:00:00+00:00"
+        )
+        assert params["project"] == "proj1"
+        assert params["modified_since"] == "2026-03-20T10:00:00+00:00"
+        assert "opt_fields" in params
+
+    def test_task_extractor_build_params_without_modified_since(self) -> None:
+        """_build_params omits modified_since when not provided."""
+        extractor = TaskExtractor()
+        params = extractor._build_params(project_gid="proj1")
+        assert params["project"] == "proj1"
+        assert "modified_since" not in params
+
+    async def test_extract_workspace_passes_modified_since(self) -> None:
+        """Verify modified_since flows from extract_workspace to TaskExtractor."""
+        captured_params: list[dict[str, str]] = []
+
+        client = MagicMock(spec=RateLimitedClient)
+
+        async def fake_paginated_get(
+            endpoint: str, *, params: dict[str, str] | None = None, workspace_gid: str | None = None
+        ):
+            if params:
+                captured_params.append(dict(params))
+            if endpoint == "/users":
+                yield {"gid": "user1", "name": "Test User"}
+            elif endpoint == "/projects":
+                yield {"gid": "proj1", "name": "Test Project"}
+            elif endpoint == "/tasks":
+                # Yield nothing — we just want to verify params
+                return
+
+        client.paginated_get = fake_paginated_get
+        writer = make_fake_writer()
+
+        await extract_workspace(client, writer, "ws123", modified_since="2026-03-20T10:00:00+00:00")
+
+        # Find the tasks params — should contain modified_since
+        task_params = [p for p in captured_params if "project" in p]
+        assert len(task_params) > 0, f"No task params captured. All params: {captured_params}"
+        assert task_params[0].get("modified_since") == "2026-03-20T10:00:00+00:00"
+
+    async def test_extract_workspace_no_modified_since_by_default(self) -> None:
+        """Verify extract_workspace without modified_since does not add it to params."""
+        captured_params: list[dict[str, str]] = []
+
+        client = MagicMock(spec=RateLimitedClient)
+
+        async def fake_paginated_get(
+            endpoint: str, *, params: dict[str, str] | None = None, workspace_gid: str | None = None
+        ):
+            if params:
+                captured_params.append(dict(params))
+            if endpoint == "/users":
+                yield {"gid": "user1", "name": "Test User"}
+            elif endpoint == "/projects":
+                yield {"gid": "proj1", "name": "Test Project"}
+            elif endpoint == "/tasks":
+                return
+
+        client.paginated_get = fake_paginated_get
+        writer = make_fake_writer()
+
+        await extract_workspace(client, writer, "ws123")
+
+        task_params = [p for p in captured_params if "project" in p]
+        if task_params:
+            assert "modified_since" not in task_params[0]
