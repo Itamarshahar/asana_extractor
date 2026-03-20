@@ -100,7 +100,7 @@ graph LR
 
 - **EntityWriter** (`writer.py`) — Atomic JSON writer using orjson serialization. Writes to a temp file then `os.replace()` for crash safety. Output path: `{output_dir}/{workspace_gid}/{entity_type}/{entity_gid}.json`.
 
-- **WorkspaceOrchestrator** (`orchestrator.py`) — Runs extraction across all tenant workspaces concurrently via `asyncio.gather`. Each workspace gets its own `RateLimitedClient` instance (with independent token bucket, 429 state, and request semaphore). A semaphore caps concurrent workspace tasks at `max_concurrent_workspaces`. Each workspace runs inside `try/except` so one failure never aborts others. The `run()` method never raises.
+- **WorkspaceOrchestrator** (`orchestrator.py`) — Runs extraction across all tenant workspaces concurrently via `asyncio.gather`. Each workspace gets its own `RateLimitedClient` instance (with independent token bucket and 429 state, plus a shared global request semaphore). A semaphore caps concurrent workspace tasks at `max_concurrent_workspaces`. Each workspace runs inside `try/except` so one failure never aborts others. The `run()` method never raises.
 
 - **ExtractionScheduler** (`scheduler.py`) — Drives periodic extraction at fixed intervals. Implements skip-on-overlap: if a cycle exceeds the interval, the next cycle is skipped with a warning log. Handles SIGTERM/SIGINT for graceful shutdown — waits up to `shutdown_timeout_seconds` for in-flight work to complete before cancelling.
 
