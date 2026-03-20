@@ -39,9 +39,13 @@ class ExtractionState:
     Attributes:
         workspace_gid: Asana workspace identifier.
         last_cycle_start: ISO 8601 UTC timestamp of the last successful
-            cycle start.  ``None`` on first run.
+            cycle start.  ``None`` on first run.  Used as the
+            ``modified_since`` value for incremental task extraction.
         entity_timestamps: Per-entity-type timestamps recording when each
-            entity type was last successfully extracted.
+            entity type was last successfully extracted.  Currently all
+            values equal ``last_cycle_start`` because the entire workspace
+            is extracted atomically — the dict exists so the schema can
+            support independent per-entity tracking in the future.
         cycle_count: Number of successful extraction cycles completed.
     """
 

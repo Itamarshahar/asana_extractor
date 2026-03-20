@@ -200,22 +200,22 @@ class WorkspaceOrchestrator:
         Returns:
             None on success, WorkspaceError on any failure.
         """
-        # Import here to avoid circular import if extractors.py imports from orchestrator.
-        # Phase 5 may not be built yet — import is deferred until runtime.
         from asana_extractor.extractors import (
             extract_workspace,
-        )  # deferred to avoid circular imports
+        )
 
         log = self._log.bind(workspace_gid=tenant.workspace_gid)
 
         async with self._semaphore:
             log.debug("workspace_task_started")
             try:
-                # Load extraction state for incremental extraction
+                # Load extraction state for incremental extraction.
+                # Only tasks support modified_since (Asana API constraint);
+                # users and projects always do a full refresh each cycle.
                 existing_state = load_state(self._settings.output_dir, tenant.workspace_gid)
                 modified_since: str | None = None
                 if existing_state is not None:
-                    modified_since = existing_state.entity_timestamps.get("tasks")
+                    modified_since = existing_state.last_cycle_start
                     log.info(
                         "incremental_extraction",
                         tasks_modified_since=modified_since,
@@ -236,7 +236,12 @@ class WorkspaceOrchestrator:
                         modified_since=modified_since,
                     )
 
-                # Save extraction state — only on success (all-or-nothing per workspace)
+                # Save extraction state — only on success (all-or-nothing per workspace).
+                # entity_timestamps records which entity types were extracted and when.
+                # Currently all timestamps equal cycle_ts because the entire workspace
+                # is extracted as one atomic unit.  The per-entity-type keys exist so
+                # that future work can track partial-success scenarios (e.g. tasks
+                # succeed but users fail) without changing the state file schema.
                 cycle_ts = cycle_start_iso or datetime.now(UTC).isoformat()
                 new_cycle_count = (existing_state.cycle_count + 1) if existing_state else 1
                 new_state = ExtractionState(
