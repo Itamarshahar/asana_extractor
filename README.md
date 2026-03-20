@@ -13,6 +13,7 @@ Key capabilities:
 - **Workspace isolation** — each workspace gets independent rate limiting; one workspace's failure never affects others
 - **Periodic scheduling** — configurable 30-second or 5-minute extraction intervals with skip-on-overlap protection
 - **Atomic writes** — temp-file-then-`os.replace` ensures no partial JSON files on disk
+- **Incremental extraction** — `modified_since` for tasks fetches only changed entities; users and projects always do a full refresh
 
 ## Setup
 
@@ -115,7 +116,7 @@ graph TD
     WA --> RLC_A["RateLimitedClient A<br/>(own TokenBucket, own 429 state)"]
     WB --> RLC_B["RateLimitedClient B<br/>(own TokenBucket, own 429 state)"]
 
-    RLC_A --> |"semaphore.acquire<br/>bucket.acquire"| API["Asana API<br/>(request semaphore: 50 max per client)"]
+    RLC_A --> |"semaphore.acquire<br/>bucket.acquire"| API["Asana API<br/>(shared semaphore: 50 max total)"]
     RLC_B --> |"semaphore.acquire<br/>bucket.acquire"| API
 
     subgraph "Within each workspace"
@@ -162,15 +163,15 @@ A shared `GlobalRequestSemaphore(50)` created by the orchestrator and injected i
 |---|---|
 | **Thousands of workspaces** | Concurrent extraction via `asyncio.gather`, capped by `max_concurrent_workspaces` semaphore (default 10). Each workspace gets an isolated rate limiter — no cross-workspace blocking. |
 | **Thousands of entities per workspace** | Streaming writes — entities are written to disk as they arrive from pagination, not buffered in memory. `paginated_get()` follows `next_page.offset` automatically. |
-| **API rate limits at scale** | Per-workspace token buckets (~120 req/min each) prevent any single workspace from starving others. Per-workspace request semaphore (50 in-flight) provides backpressure within each workspace. |
+| **API rate limits at scale** | Per-workspace token buckets (~120 req/min each) prevent any single workspace from starving others. A shared global request semaphore (50 in-flight across all workspaces) provides backpressure. |
 | **Partial failures** | Workspace isolation: each workspace runs inside `try/except` with `asyncio.gather`. One workspace's API error is captured in `OrchestratorResult.failed` without aborting others. Transient errors are retried with exponential backoff + jitter. |
 | **Long-running extractions** | Skip-on-overlap scheduling: if a cycle exceeds the interval, the next cycle is skipped with a warning log — no queue buildup or unbounded memory growth. |
+| **Repeated full extraction** | Incremental extraction via `modified_since` for tasks reduces API calls to O(changed) per cycle. Users and projects always do a full refresh (Asana API limitation). State tracked per workspace in `.extraction_state.json`. |
 
-**Future scaling considerations:** At 10,000+ workspaces, the single-process asyncio model would benefit from distributed workers (process pool or separate nodes), a persistent job queue for extraction tasks, incremental/delta extraction (only fetch changed entities), and database output instead of filesystem writes.
+**Future scaling considerations:** At 10,000+ workspaces, the single-process asyncio model would benefit from distributed workers (process pool or separate nodes), a persistent job queue for extraction tasks, and database output instead of filesystem writes.
 
 ## Known Limitations
 
-- **No delta/incremental extraction** — Every cycle extracts all entities from scratch. For very large workspaces, incremental extraction (fetching only entities modified since the last cycle) would reduce API calls and cycle duration significantly.
 - **Single-process architecture** — All workspaces are processed within a single Python process. At 10,000+ workspaces, distributing work across multiple processes or nodes with a job queue would improve throughput.
 - **Filesystem output only** — Entities are written as individual JSON files. At scale, a database or object store would provide better query capabilities, deduplication, and durability.
 
@@ -204,11 +205,13 @@ src/asana_extractor/
 ├── exceptions.py          # Exception hierarchy (AsanaTransientError / AsanaPermanentError)
 ├── extractors.py          # Entity extractors (users, projects, tasks) and workspace orchestration
 ├── logging.py             # Structured logging setup (structlog, JSON output)
+├── models.py              # Extraction result types (ExtractionResult dataclass)
 ├── orchestrator.py        # Multi-workspace concurrent processor with isolation
 ├── rate_limited_client.py # Rate-limited wrapper composing all throttling primitives
 ├── rate_limiter.py        # Token bucket, 429 state, workspace registry, global semaphore
 ├── scheduler.py           # Periodic execution (skip-on-overlap, graceful shutdown)
 ├── secrets.py             # Secrets interface (ABC + .env provider via python-dotenv)
+├── state.py               # Incremental extraction state (load/save/delete per workspace)
 ├── tenant.py              # Tenant/workspace configuration types and provider
 └── writer.py              # Atomic JSON file writer (tmp + os.replace, orjson)
 ```
