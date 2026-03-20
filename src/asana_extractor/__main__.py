@@ -9,7 +9,6 @@ from asana_extractor.config import load_config
 from asana_extractor.logging import configure_logging, get_logger
 from asana_extractor.orchestrator import WorkspaceOrchestrator
 from asana_extractor.scheduler import ExtractionScheduler
-from asana_extractor.secrets import EnvSecretsProvider
 from asana_extractor.state import delete_state
 from asana_extractor.tenant import EnvTenantProvider
 
@@ -43,30 +42,23 @@ def main() -> None:
         full_extraction=args.full_extraction,
     )
 
-    # Step 3: Load PAT from secrets (fail-fast if ASANA_PAT not set in .env)
-    secrets_provider = EnvSecretsProvider()
-    pat = secrets_provider.get_secret("ASANA_PAT")  # noqa: F841
-    # PAT is validated by loading it; EnvSecretsProvider.get_secret exits on missing key.
-    # The TenantProvider below will also need it — for the exercise, EnvTenantProvider
-    # reads tenants from config.json which includes PATs per workspace.
-
-    # Step 4: Build orchestrator
+    # Step 3: Build orchestrator
     orchestrator = WorkspaceOrchestrator(settings)
 
-    # Step 5: Build tenant provider
+    # Step 4: Build tenant provider
     tenant_provider = EnvTenantProvider()
 
-    # Step 5.5: Clear state files if --full-extraction requested
+    # Step 4.5: Clear state files if --full-extraction requested
     if args.full_extraction:
         tenants = tenant_provider.list_tenants()
         for tenant in tenants:
             delete_state(settings.output_dir, tenant.workspace_gid)
         log.info("full_extraction_state_cleared", workspace_count=len(tenants))
 
-    # Step 6: Build scheduler
+    # Step 5: Build scheduler
     scheduler = ExtractionScheduler(settings, orchestrator, tenant_provider)
 
-    # Step 7: Run the appropriate mode
+    # Step 6: Run the appropriate mode
     try:
         if args.run_once:
             asyncio.run(scheduler.run_once())

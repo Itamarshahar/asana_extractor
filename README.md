@@ -38,12 +38,6 @@ Key capabilities:
 
    Edit `config.json` — set `extraction_interval` (30 or 300) and add your workspace(s) to the `tenants` array with their GIDs and PATs.
 
-   Create a `.env` file with your Personal Access Token:
-
-   ```
-   ASANA_PAT=1/your-personal-access-token
-   ```
-
 4. **Run:**
 
    ```bash
@@ -270,7 +264,7 @@ Testing patterns used:
 ```
 src/asana_extractor/
 ├── __init__.py            # Package exports
-├── __main__.py            # CLI entry point (config → logging → secrets → orchestrator → scheduler)
+├── __main__.py            # CLI entry point (config → logging → orchestrator → scheduler)
 ├── client.py              # Async HTTP client (auth, pagination, retry with tenacity)
 ├── config.py              # Configuration model (pydantic BaseModel) and loader
 ├── exceptions.py          # Exception hierarchy (AsanaTransientError / AsanaPermanentError)
@@ -281,7 +275,7 @@ src/asana_extractor/
 ├── rate_limited_client.py # Rate-limited wrapper composing all throttling primitives
 ├── rate_limiter.py        # Token bucket, 429 state, workspace registry, global semaphore
 ├── scheduler.py           # Periodic execution (skip-on-overlap, graceful shutdown)
-├── secrets.py             # Secrets interface (ABC + .env provider via python-dotenv)
+├── secrets.py             # Secrets interface (ABC for credential providers)
 ├── state.py               # Incremental extraction state (load/save/delete per workspace)
 ├── tenant.py              # Tenant/workspace configuration types and provider
 └── writer.py              # Atomic JSON file writer (tmp + os.replace, orjson)
