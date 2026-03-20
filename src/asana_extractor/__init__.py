@@ -21,6 +21,13 @@ from asana_extractor.models import BaseAsanaObject, Project, Task, User
 from asana_extractor.orchestrator import WorkspaceOrchestrator
 from asana_extractor.rate_limited_client import RateLimitedClient
 from asana_extractor.scheduler import ExtractionScheduler
+from asana_extractor.state import (
+    ExtractionState,
+    delete_state,
+    load_state,
+    save_state,
+    state_file_path,
+)
 from asana_extractor.tenant import (
     EnvTenantProvider,
     OrchestratorResult,
@@ -43,6 +50,7 @@ __all__ = [
     "EnvTenantProvider",
     "ExtractionResult",
     "ExtractionScheduler",
+    "ExtractionState",
     "OrchestratorResult",
     "Project",
     "ProjectExtractionResult",
@@ -58,6 +66,10 @@ __all__ = [
     "WorkspaceExtractionResult",
     "WorkspaceOrchestrator",
     "__version__",
+    "delete_state",
     "discover_workspaces",
     "extract_workspace",
+    "load_state",
+    "save_state",
+    "state_file_path",
 ]

@@ -358,7 +358,11 @@ class TaskExtractor(BaseExtractor):
 
     def _build_params(self, **kwargs: Any) -> dict[str, str]:  # noqa: ANN401
         project_gid: str = kwargs["project_gid"]
-        return {"project": project_gid, "opt_fields": self.OPT_FIELDS}
+        params: dict[str, str] = {"project": project_gid, "opt_fields": self.OPT_FIELDS}
+        modified_since: str | None = kwargs.get("modified_since")
+        if modified_since is not None:
+            params["modified_since"] = modified_since
+        return params
 
     async def extract(
         self,
@@ -393,7 +397,7 @@ class TaskExtractor(BaseExtractor):
         start_time = time.monotonic()
         count = 0
         warnings: list[str] = []
-        params = self._build_params(project_gid=project_gid)
+        params = self._build_params(**kwargs)
 
         async for entity in client.paginated_get(
             self.endpoint, params=params, workspace_gid=workspace_gid
@@ -433,6 +437,8 @@ class TaskExtractor(BaseExtractor):
         writer: EntityWriter,
         workspace_gid: str,
         project_gids: list[str],
+        *,
+        modified_since: str | None = None,
     ) -> ExtractionResult:
         """Extract tasks concurrently across all projects in a workspace.
 
@@ -445,6 +451,7 @@ class TaskExtractor(BaseExtractor):
             writer: Atomic JSON file writer.
             workspace_gid: Workspace identifier.
             project_gids: List of project GIDs to extract tasks from.
+            modified_since: Optional ISO 8601 timestamp for incremental extraction.
 
         Returns:
             Aggregated ExtractionResult across all projects.
@@ -462,12 +469,19 @@ class TaskExtractor(BaseExtractor):
                 duration_seconds=0.0,
             )
 
-        log.info("task_extraction_all_started", project_count=len(project_gids))
+        log.info(
+            "task_extraction_all_started",
+            project_count=len(project_gids),
+            incremental=modified_since is not None,
+        )
         start_time = time.monotonic()
 
         # Fire concurrent extraction — rate limiter handles throttling
         coros = [
-            self.extract(client, writer, workspace_gid, project_gid=pgid) for pgid in project_gids
+            self.extract(
+                client, writer, workspace_gid, project_gid=pgid, modified_since=modified_since
+            )
+            for pgid in project_gids
         ]
         results = await asyncio.gather(*coros, return_exceptions=True)
 
@@ -554,6 +568,8 @@ async def extract_workspace(
     client: RateLimitedClient,
     writer: EntityWriter,
     workspace_gid: str,
+    *,
+    modified_since: str | None = None,
 ) -> WorkspaceExtractionResult:
     """Extract all entities for a single workspace: users, projects, then tasks.
 
@@ -569,13 +585,15 @@ async def extract_workspace(
         client: Rate-limited API client.
         writer: Atomic JSON file writer.
         workspace_gid: Workspace to extract.
+        modified_since: Optional ISO 8601 timestamp for incremental task extraction.
+            Only affects tasks — users and projects always do full refresh.
 
     Returns:
         WorkspaceExtractionResult with per-entity-type results and totals.
     """
     log = get_logger(__name__)
     log = log.bind(workspace_gid=workspace_gid)
-    log.info("workspace_extraction_started")
+    log.info("workspace_extraction_started", incremental=modified_since is not None)
 
     start_time = time.monotonic()
     all_warnings: list[str] = []
@@ -604,7 +622,11 @@ async def extract_workspace(
     # Phase 2: Extract tasks for all discovered projects (concurrent)
     task_extractor = TaskExtractor()
     task_result = await task_extractor.extract_all(
-        client, writer, workspace_gid, project_result.project_gids
+        client,
+        writer,
+        workspace_gid,
+        project_result.project_gids,
+        modified_since=modified_since,
     )
     all_warnings.extend(task_result.warnings)
 
