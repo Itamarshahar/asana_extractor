@@ -170,6 +170,82 @@ A shared `GlobalRequestSemaphore(50)` created by the orchestrator and injected i
 
 **Future scaling considerations:** At 10,000+ workspaces, the single-process asyncio model would benefit from distributed workers (process pool or separate nodes), a persistent job queue for extraction tasks, and database output instead of filesystem writes.
 
+## Output Examples
+
+Each extraction cycle writes one JSON file per entity, organized by workspace and entity type:
+
+```
+output/
+├── 1234567890/
+│   ├── .extraction_state.json
+│   ├── users/
+│   │   ├── 1100000000000001.json
+│   │   └── 1100000000000002.json
+│   ├── projects/
+│   │   └── 1200000000000001.json
+│   └── tasks/
+│       ├── 1300000000000001.json
+│       └── 1300000000000002.json
+└── 9876543210/
+    ├── .extraction_state.json
+    ├── users/
+    │   └── 1100000000000003.json
+    ├── projects/
+    │   └── 1200000000000002.json
+    └── tasks/
+        └── 1300000000000003.json
+```
+
+**User** (`output/1234567890/users/1100000000000001.json`):
+
+```json
+{
+  "gid": "1100000000000001",
+  "last_fetch_time": "2026-03-20T14:30:00+00:00",
+  "name": "Alice Smith"
+}
+```
+
+**Project** (`output/1234567890/projects/1200000000000001.json`):
+
+```json
+{
+  "gid": "1200000000000001",
+  "last_fetch_time": "2026-03-20T14:30:00+00:00",
+  "name": "Website Redesign",
+  "workspace_gid": "1234567890"
+}
+```
+
+**Task** (`output/1234567890/tasks/1300000000000001.json`):
+
+```json
+{
+  "gid": "1300000000000001",
+  "last_fetch_time": "2026-03-20T14:30:05+00:00",
+  "name": "Update homepage hero section",
+  "project_gid": "1200000000000001",
+  "project_name": "Website Redesign"
+}
+```
+
+**Extraction state** (`output/1234567890/.extraction_state.json`):
+
+```json
+{
+  "workspace_gid": "1234567890",
+  "last_cycle_start": "2026-03-20T14:30:00+00:00",
+  "entity_timestamps": {
+    "users": "2026-03-20T14:30:00+00:00",
+    "projects": "2026-03-20T14:30:00+00:00",
+    "tasks": "2026-03-20T14:30:00+00:00"
+  },
+  "cycle_count": 42
+}
+```
+
+All JSON files are pretty-printed with 2-space indentation (orjson `OPT_INDENT_2`). Writes are atomic — a temp file is written first, then `os.replace()` swaps it into place, so no partial files appear on disk.
+
 ## Testing
 
 ```bash
